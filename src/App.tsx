@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // Import pages
+import Index from "@/pages/Index";
 import SplashScreen from "@/components/SplashScreen";
 import RoleSelection from "@/components/RoleSelection";
 import CustomerAuth from "@/components/auth/CustomerAuth";
@@ -27,7 +28,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Initial Routes */}
-          <Route path="/" element={<SplashScreen />} />
+          <Route path="/" element={<Index />} />
+          <Route path="/splash" element={<SplashScreen />} />
           <Route path="/role-select" element={<RoleSelection />} />
           
           {/* Customer Routes */}
