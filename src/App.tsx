@@ -14,6 +14,7 @@ import AdminAuth from "@/components/auth/AdminAuth";
 import CustomerHome from "@/pages/customer/CustomerHome";
 import ProductDetail from "@/pages/customer/ProductDetail";
 import ShoppingCart from "@/pages/customer/ShoppingCart";
+import SearchPage from "@/pages/customer/SearchPage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import ProductManagement from "@/pages/admin/ProductManagement";
 import NotFound from "@/pages/NotFound";
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/customer/home" element={<CustomerHome />} />
           <Route path="/customer/product/:id" element={<ProductDetail />} />
           <Route path="/customer/cart" element={<ShoppingCart />} />
+          <Route path="/customer/search" element={<SearchPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminAuth />} />
