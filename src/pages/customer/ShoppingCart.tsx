@@ -1,40 +1,59 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, ChevronLeft } from "lucide-react";
+import { Trash2, ChevronLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample cart data
-const initialCartItems = [
-  {
-    id: 1,
-    name: "iPhone 13 Pro Max",
-    price: 119900,
-    image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
-    quantity: 1
-  },
-  {
-    id: 2,
-    name: "Samsung Galaxy S21",
-    price: 69999,
-    image: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=1000",
-    quantity: 1
-  }
-];
+interface CartItem {
+  id: string | number;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+}
 
 const ShoppingCart = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  useEffect(() => {
+    // Check if user is authenticated
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsAuthenticated(false);
+        // Instead of redirecting, allow the user to see the cart but require login for checkout
+      } else {
+        setIsAuthenticated(true);
+      }
+    };
+    
+    checkAuth();
+    
+    // Load cart items from localStorage
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      setCartItems(JSON.parse(savedCart));
+    }
+  }, [navigate]);
+  
+  useEffect(() => {
+    // Save cart items to localStorage when they change
+    localStorage.setItem('cart', JSON.stringify(cartItems));
+  }, [cartItems]);
   
   const goBack = () => {
     navigate(-1);
   };
   
-  const removeItem = (id: number) => {
+  const removeItem = (id: number | string) => {
     setCartItems(cartItems.filter(item => item.id !== id));
     toast({
       title: "Item removed",
@@ -43,7 +62,7 @@ const ShoppingCart = () => {
     });
   };
   
-  const updateQuantity = (id: number, newQuantity: number) => {
+  const updateQuantity = (id: number | string, newQuantity: number) => {
     if (newQuantity < 1 || newQuantity > 5) return;
     
     setCartItems(cartItems.map(item => 
@@ -61,13 +80,82 @@ const ShoppingCart = () => {
     return subtotal + deliveryFee;
   };
   
-  const handleCheckout = () => {
-    toast({
-      title: "Order placed successfully",
-      description: "Your order has been placed and is being processed",
-      duration: 3000,
-    });
-    navigate("/customer/order-tracking");
+  const handleCheckout = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Login Required",
+        description: "Please login to complete your purchase",
+        variant: "destructive",
+      });
+      navigate("/customer/login");
+      return;
+    }
+    
+    if (cartItems.length === 0) {
+      toast({
+        title: "Empty Cart",
+        description: "Your cart is empty. Add some products before checkout.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Get user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) throw new Error("User not authenticated");
+      
+      // Create order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          total: calculateTotal(),
+          status: 'Processing'
+        })
+        .select()
+        .single();
+      
+      if (orderError) throw orderError;
+      
+      // Add order items
+      const orderItems = cartItems.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price
+      }));
+      
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+      
+      if (itemsError) throw itemsError;
+      
+      // Clear cart
+      setCartItems([]);
+      localStorage.removeItem('cart');
+      
+      toast({
+        title: "Order placed successfully",
+        description: "Your order has been placed and is being processed",
+        duration: 3000,
+      });
+      
+      navigate("/customer/orders");
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast({
+        title: "Checkout Failed",
+        description: error.message || "There was an error processing your order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -86,6 +174,15 @@ const ShoppingCart = () => {
       </div>
       
       <div className="pt-16 p-4">
+        {!isAuthenticated && cartItems.length > 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-center">
+            <AlertCircle className="text-yellow-500 mr-2" size={18} />
+            <p className="text-sm text-yellow-700">
+              <span className="font-medium">Login required</span> to place an order
+            </p>
+          </div>
+        )}
+        
         {cartItems.length === 0 ? (
           <div className="text-center py-16">
             <h2 className="text-xl font-medium mb-2">Your cart is empty</h2>
@@ -167,8 +264,9 @@ const ShoppingCart = () => {
               className="w-full" 
               size="lg"
               onClick={handleCheckout}
+              disabled={isLoading}
             >
-              Proceed to Checkout
+              {isLoading ? "Processing..." : "Proceed to Checkout"}
             </Button>
           </div>
         )}

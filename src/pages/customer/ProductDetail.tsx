@@ -75,11 +75,52 @@ const ProductDetail = () => {
   };
   
   const addToCart = () => {
-    toast({
-      title: "Added to cart",
-      description: `${product?.name} has been added to your cart`,
-      duration: 2000,
-    });
+    if (!product) return;
+    
+    // Get existing cart items from localStorage
+    const existingCartStr = localStorage.getItem('cart');
+    const existingCart = existingCartStr ? JSON.parse(existingCartStr) : [];
+    
+    // Check if product is already in cart
+    const existingItem = existingCart.find((item: any) => item.id === product.id);
+    
+    let updatedCart;
+    
+    if (existingItem) {
+      // Increment quantity of existing item (up to max of 5)
+      updatedCart = existingCart.map((item: any) => 
+        item.id === product.id 
+          ? { ...item, quantity: Math.min(item.quantity + 1, 5) } 
+          : item
+      );
+      
+      toast({
+        title: "Cart updated",
+        description: `Quantity of ${product.name} increased in your cart`,
+        duration: 2000,
+      });
+    } else {
+      // Add new item to cart
+      updatedCart = [
+        ...existingCart, 
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          image: product.image,
+          quantity: 1
+        }
+      ];
+      
+      toast({
+        title: "Added to cart",
+        description: `${product.name} has been added to your cart`,
+        duration: 2000,
+      });
+    }
+    
+    // Save updated cart to localStorage
+    localStorage.setItem('cart', JSON.stringify(updatedCart));
   };
   
   if (loading) {

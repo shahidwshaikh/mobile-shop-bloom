@@ -1,219 +1,133 @@
 
-import { useState } from "react";
-import CustomerNavbar from "@/components/navigation/CustomerNavbar";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { LogOut, User, ShoppingBag, Heart, MapPin, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, LogOut, ShoppingBag, CreditCard, Settings } from "lucide-react";
-
-// Sample user data (for demonstration)
-const sampleUser = {
-  name: "John Doe",
-  email: "john.doe@example.com",
-  phone: "+91 9876543210",
-  address: "123 Main Street, Bangalore, Karnataka",
-};
-
-// Sample order history data
-const sampleOrders = [
-  { id: "ORD001", date: "2025-04-05", status: "Delivered", total: 24900 },
-  { id: "ORD002", date: "2025-03-22", status: "Processing", total: 69999 },
-  { id: "ORD003", date: "2025-03-10", status: "Cancelled", total: 49999 },
-];
+import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import CustomerNavbar from "@/components/navigation/CustomerNavbar";
+import { supabase } from "@/integrations/supabase/client";
 
 const CustomerProfile = () => {
-  const [userData, setUserData] = useState(sampleUser);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState(sampleUser);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setUserData(formData);
-    setIsEditing(false);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Delivered": return "text-green-600";
-      case "Processing": return "text-blue-600";
-      case "Cancelled": return "text-red-600";
-      default: return "text-gray-600";
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        navigate("/customer/login");
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, [navigate]);
+  
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+      navigate("/customer/login");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
     }
   };
+  
+  const menuItems = [
+    { icon: <ShoppingBag size={20} />, label: "My Orders", action: () => navigate("/customer/orders") },
+    { icon: <Heart size={20} />, label: "My Wishlist", action: () => navigate("/customer/wishlist") },
+    { icon: <MapPin size={20} />, label: "Shipping Addresses", action: () => {} },
+    { icon: <Settings size={20} />, label: "Account Settings", action: () => {} },
+  ];
 
   return (
     <div className="pb-20">
-      <div className="bg-shop-purple text-white p-4">
-        <h1 className="text-xl font-bold">My Profile</h1>
-        <p className="text-sm opacity-90">Manage your account and orders</p>
+      <div className="fixed top-0 left-0 right-0 z-10 bg-white shadow-sm p-4 flex items-center">
+        <h1 className="text-lg font-medium">My Profile</h1>
       </div>
       
-      <div className="p-4">
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-2">
-            <User size={36} className="text-gray-500" />
+      <div className="pt-16 p-4">
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-shop-purple border-t-transparent rounded-full"></div>
           </div>
-          <h2 className="text-lg font-medium">{userData.name}</h2>
-          <p className="text-gray-500">{userData.email}</p>
-        </div>
-        
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid grid-cols-3 w-full">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="profile" className="mt-4">
-            {isEditing ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    name="name" 
-                    value={formData.name} 
-                    onChange={handleChange} 
-                  />
+        ) : (
+          <>
+            <Card className="mb-6">
+              <CardContent className="p-4 flex items-center">
+                <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <User size={32} className="text-gray-500" />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email" 
-                    value={formData.email} 
-                    onChange={handleChange} 
-                  />
+                  <h2 className="font-medium text-lg">{profile?.full_name || "User"}</h2>
+                  <p className="text-gray-500 text-sm">{profile?.phone || "No phone number"}</p>
+                  <p className="text-gray-500 text-sm">{supabase.auth.getUser().then(({ data }) => data.user?.email)}</p>
                 </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input 
-                    id="phone" 
-                    name="phone" 
-                    value={formData.phone} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input 
-                    id="address" 
-                    name="address" 
-                    value={formData.address} 
-                    onChange={handleChange} 
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit">Save Changes</Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => {
-                      setFormData(userData);
-                      setIsEditing(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 py-2 border-b">
-                  <span className="text-gray-500">Name</span>
-                  <span className="col-span-2">{userData.name}</span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b">
-                  <span className="text-gray-500">Email</span>
-                  <span className="col-span-2">{userData.email}</span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b">
-                  <span className="text-gray-500">Phone</span>
-                  <span className="col-span-2">{userData.phone}</span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b">
-                  <span className="text-gray-500">Address</span>
-                  <span className="col-span-2">{userData.address}</span>
-                </div>
-                <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="orders" className="mt-4">
-            {sampleOrders.length > 0 ? (
-              <div className="space-y-4">
-                {sampleOrders.map(order => (
-                  <div key={order.id} className="border rounded-lg p-3">
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium">Order #{order.id}</span>
-                      <span className={getStatusColor(order.status)}>{order.status}</span>
+              </CardContent>
+            </Card>
+            
+            <div className="space-y-2">
+              {menuItems.map((item, index) => (
+                <Button
+                  key={index}
+                  variant="ghost"
+                  className="w-full justify-start py-6 px-4 bg-white border rounded-lg"
+                  onClick={item.action}
+                >
+                  <div className="flex items-center">
+                    <div className="p-2 rounded-full bg-gray-100 mr-4">
+                      {item.icon}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      <p>Date: {order.date}</p>
-                      <p>Total: ₹{(order.total / 100).toLocaleString()}</p>
-                    </div>
-                    <Button variant="outline" size="sm" className="mt-2">
-                      View Details
-                    </Button>
+                    <span>{item.label}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-10 text-gray-500">
-                <ShoppingBag size={48} className="mx-auto mb-4 opacity-50" />
-                <p>You haven't placed any orders yet</p>
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="settings" className="mt-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="text-gray-500" />
-                  <span>Payment Methods</span>
-                </div>
-                <Button variant="ghost" size="sm">Manage</Button>
-              </div>
+                </Button>
+              ))}
               
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Settings className="text-gray-500" />
-                  <span>Notifications</span>
-                </div>
-                <Button variant="ghost" size="sm">Configure</Button>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <LogOut className="text-gray-500" />
+              <Button
+                variant="ghost"
+                className="w-full justify-start py-6 px-4 bg-white border rounded-lg text-red-500"
+                onClick={handleLogout}
+              >
+                <div className="flex items-center">
+                  <div className="p-2 rounded-full bg-red-100 mr-4">
+                    <LogOut size={20} className="text-red-500" />
+                  </div>
                   <span>Logout</span>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="text-red-500 hover:text-red-700"
-                  onClick={() => {
-                    // In a real app, handle logout and redirect
-                    window.location.href = "/";
-                  }}
-                >
-                  Logout
-                </Button>
-              </div>
+              </Button>
             </div>
-          </TabsContent>
-        </Tabs>
+          </>
+        )}
       </div>
-
+      
       <CustomerNavbar />
     </div>
   );

@@ -22,6 +22,28 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
 
   useEffect(() => {
     fetchProducts();
+    
+    // Set up subscription to real-time updates
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        (payload) => {
+          console.log('Change received!', payload);
+          // Refetch products when there's any change
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchProducts = async () => {
@@ -53,30 +75,6 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
       setLoading(false);
     }
   };
-
-  // Set up subscription to real-time updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products'
-        },
-        (payload) => {
-          console.log('Change received!', payload);
-          // Refetch products when there's any change
-          fetchProducts();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   useEffect(() => {
     let result = [...products];
@@ -125,7 +123,7 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <Input
           placeholder="Search products..."
           value={searchQuery}
@@ -133,7 +131,7 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
           className="flex-1"
         />
         <Select defaultValue={sortBy} onValueChange={handleSort}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-full sm:w-36">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -150,7 +148,7 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
           <p className="text-muted-foreground">No products found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredProducts.map(product => (
             <ProductCard key={product.id} product={product} />
           ))}

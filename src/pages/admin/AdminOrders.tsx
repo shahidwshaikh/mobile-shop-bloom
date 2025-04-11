@@ -1,60 +1,152 @@
 
-import { useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import AdminNavbar from "@/components/navigation/AdminNavbar";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample orders data
-const sampleOrders = [
-  {
-    id: "ORD-001",
-    customer: "John Doe",
-    date: "2023-04-10",
-    amount: 24900,
-    status: "Delivered",
-    items: 2
-  },
-  {
-    id: "ORD-002",
-    customer: "Jane Smith",
-    date: "2023-04-09",
-    amount: 119900,
-    status: "Processing",
-    items: 1
-  },
-  {
-    id: "ORD-003",
-    customer: "Bob Johnson",
-    date: "2023-04-08",
-    amount: 69999,
-    status: "Shipped",
-    items: 3
-  },
-  {
-    id: "ORD-004",
-    customer: "Alice Williams",
-    date: "2023-04-07",
-    amount: 45000,
-    status: "Cancelled",
-    items: 2
-  }
-];
+interface Order {
+  id: string;
+  user_id: string;
+  customer: string;
+  status: string;
+  total: number;
+  created_at: string;
+  items: number;
+}
+
+const statusOptions = ["All", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 const AdminOrders = () => {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    // Check if admin is authenticated
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/admin/login");
+        return;
+      }
+      
+      // Fetch orders
+      fetchOrders();
+      
+      // Set up subscription for real-time updates
+      const subscription = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders'
+          },
+          (payload) => {
+            console.log('Order change received:', payload);
+            fetchOrders();
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    };
+    
+    checkAuth();
+  }, [navigate]);
+  
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      
+      // Get all orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (ordersError) throw ordersError;
+      
+      if (!ordersData || ordersData.length === 0) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get customer names and order items count
+      const ordersWithDetails = await Promise.all(
+        ordersData.map(async (order) => {
+          // Get customer details
+          const { data: customerData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', order.user_id)
+            .single();
+          
+          // Get order items count
+          const { count } = await supabase
+            .from('order_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('order_id', order.id);
+          
+          return {
+            ...order,
+            customer: customerData?.full_name || 'Customer',
+            items: count || 0
+          };
+        })
+      );
+      
+      setOrders(ordersWithDetails);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
   
-  const filteredOrders = sampleOrders.filter(order => 
-    order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.status.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+  };
+  
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setOrders(orders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      ));
+    } catch (error) {
+      console.error("Error updating order status:", error);
+    }
+  };
   
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -70,6 +162,27 @@ const AdminOrders = () => {
         return "bg-gray-500";
     }
   };
+  
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+  
+  // Filter orders based on search query and status
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = 
+      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.status.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "All" || order.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="pb-20">
@@ -78,15 +191,33 @@ const AdminOrders = () => {
       </div>
       
       <div className="pt-16 p-4">
-        <Input
-          placeholder="Search orders..."
-          value={searchQuery}
-          onChange={handleSearch}
-          className="mb-4"
-        />
+        <div className="flex gap-2 mb-4">
+          <Input
+            placeholder="Search orders..."
+            value={searchQuery}
+            onChange={handleSearch}
+            className="flex-1"
+          />
+          <Select value={statusFilter} onValueChange={handleStatusChange}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Filter Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         
         <div className="space-y-4">
-          {filteredOrders.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+            </div>
+          ) : filteredOrders.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">No orders found</p>
             </div>
@@ -97,19 +228,38 @@ const AdminOrders = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{order.id}</h3>
+                        <h3 className="font-medium">#{order.id.slice(-6)}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{order.customer}</p>
-                      <p className="text-xs text-gray-500">{order.date}</p>
+                      <p className="text-xs text-gray-500">{formatDate(order.created_at)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-shop-purple">₹{order.amount.toLocaleString()}</p>
+                      <p className="font-bold text-shop-purple">₹{order.total.toLocaleString()}</p>
                       <p className="text-xs text-gray-500">{order.items} items</p>
                     </div>
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <Button variant="outline" size="sm">View Details</Button>
+                  <div className="mt-4">
+                    <Select
+                      value={order.status}
+                      onValueChange={(value) => updateOrderStatus(order.id, value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Update Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Processing">Processing</SelectItem>
+                        <SelectItem value="Shipped">Shipped</SelectItem>
+                        <SelectItem value="Delivered">Delivered</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <Button variant="outline" size="sm" className="flex items-center gap-1">
+                      <span>View Details</span>
+                      <ExternalLink size={14} />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

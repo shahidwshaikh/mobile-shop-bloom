@@ -1,16 +1,19 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 const CustomerAuth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [session, setSession] = useState(null);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -18,39 +21,105 @@ const CustomerAuth = () => {
     phone: "",
   });
 
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSession(session);
+        navigate("/customer/home");
+      }
+    });
+
+    // Set up auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (session) {
+          navigate("/customer/home");
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulating API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+      
+      if (error) throw error;
+      
       toast({
         title: "Login Successful",
         description: "Welcome back to Mobile Shop Bloom!",
       });
+      
       navigate("/customer/home");
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Please check your credentials and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulating API call
-    setTimeout(() => {
+    if (!formData.name || !formData.email || !formData.password) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
       setIsLoading(false);
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+            phone: formData.phone,
+          },
+        },
+      });
+      
+      if (error) throw error;
+      
       toast({
         title: "Account Created",
         description: "Your account has been created successfully!",
       });
+      
       navigate("/customer/home");
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Signup Failed",
+        description: error.message || "There was an error creating your account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -74,8 +143,8 @@ const CustomerAuth = () => {
                 <div className="space-y-2">
                   <Input
                     name="email"
-                    type="text"
-                    placeholder="Email or Phone Number"
+                    type="email"
+                    placeholder="Email Address"
                     value={formData.email}
                     onChange={handleChange}
                     required
@@ -99,7 +168,14 @@ const CustomerAuth = () => {
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Logging in..." : "Login"}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    "Login"
+                  )}
                 </Button>
               </CardFooter>
             </form>
@@ -131,7 +207,6 @@ const CustomerAuth = () => {
                     placeholder="Phone Number"
                     value={formData.phone}
                     onChange={handleChange}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -157,7 +232,14 @@ const CustomerAuth = () => {
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating Account..." : "Sign Up"}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    "Sign Up"
+                  )}
                 </Button>
               </CardFooter>
             </form>

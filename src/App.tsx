@@ -14,6 +14,7 @@ import AdminAuth from "@/components/auth/AdminAuth";
 import CustomerHome from "@/pages/customer/CustomerHome";
 import ProductDetail from "@/pages/customer/ProductDetail";
 import ShoppingCart from "@/pages/customer/ShoppingCart";
+import CustomerOrders from "@/pages/customer/CustomerOrders";
 import SearchPage from "@/pages/customer/SearchPage";
 import CustomerWishlist from "@/pages/customer/CustomerWishlist";
 import CustomerProfile from "@/pages/customer/CustomerProfile";
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/customer/home" element={<CustomerHome />} />
           <Route path="/customer/product/:id" element={<ProductDetail />} />
           <Route path="/customer/cart" element={<ShoppingCart />} />
+          <Route path="/customer/orders" element={<CustomerOrders />} />
           <Route path="/customer/search" element={<SearchPage />} />
           <Route path="/customer/wishlist" element={<CustomerWishlist />} />
           <Route path="/customer/profile" element={<CustomerProfile />} />
