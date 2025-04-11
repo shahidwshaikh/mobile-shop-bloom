@@ -120,19 +120,23 @@ const ShoppingCart = () => {
       
       if (orderError) throw orderError;
       
-      // Add order items
+      // Add order items - Fix the type mismatch by mapping each item properly
+      // and ensuring product_id is always a string
       const orderItems = cartItems.map(item => ({
         order_id: order.id,
-        product_id: item.id,
+        product_id: String(item.id), // Convert product_id to string
         quantity: item.quantity,
         price: item.price
       }));
       
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-      
-      if (itemsError) throw itemsError;
+      // Insert each order item individually to avoid type mismatch with array insert
+      for (const item of orderItems) {
+        const { error: itemError } = await supabase
+          .from('order_items')
+          .insert(item);
+          
+        if (itemError) throw itemError;
+      }
       
       // Clear cart
       setCartItems([]);
