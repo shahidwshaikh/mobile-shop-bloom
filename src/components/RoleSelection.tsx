@@ -2,9 +2,23 @@
 import { useNavigate } from "react-router-dom";
 import { Users, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is already logged in and sign them out when reaching role selection
+    const checkAndLogout = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        await supabase.auth.signOut();
+      }
+    };
+    
+    checkAndLogout();
+  }, []);
 
   return (
     <div className="mobile-container flex flex-col items-center justify-center">

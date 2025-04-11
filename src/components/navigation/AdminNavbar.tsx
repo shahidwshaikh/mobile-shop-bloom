@@ -1,11 +1,21 @@
 
-import { LayoutDashboard, Package, ShoppingBag, BarChart, MessageSquare, LogOut } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { LayoutDashboard, Package, ShoppingBag, BarChart, MessageSquare, LogOut, Users, User } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 const AdminNavbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   const isActive = (path: string) => {
@@ -20,9 +30,8 @@ const AdminNavbar = () => {
         description: "You have been logged out of your account",
         duration: 3000,
       });
-      // Navigate to login page after logout
-      window.location.href = "/admin/login";
-    } catch (error) {
+      navigate("/role-select");
+    } catch (error: any) {
       toast({
         title: "Logout failed",
         description: "There was an error logging out",
@@ -30,6 +39,10 @@ const AdminNavbar = () => {
         duration: 3000,
       });
     }
+  };
+
+  const switchToCustomer = () => {
+    navigate("/customer/login");
   };
 
   return (
@@ -66,21 +79,38 @@ const AdminNavbar = () => {
         <span className="text-xs">Analytics</span>
       </Link>
       
-      <Link 
-        to="/admin/support" 
-        className={`nav-item flex flex-col items-center justify-center gap-1 flex-1 ${isActive("/support") ? "text-shop-purple" : "text-gray-500"}`}
-      >
-        <MessageSquare size={24} />
-        <span className="text-xs">Support</span>
-      </Link>
-      
-      <button 
-        onClick={handleLogout}
-        className="nav-item flex flex-col items-center justify-center gap-1 flex-1 text-gray-500"
-      >
-        <LogOut size={24} />
-        <span className="text-xs">Logout</span>
-      </button>
+      <Sheet>
+        <SheetTrigger asChild>
+          <button className={`nav-item flex flex-col items-center justify-center gap-1 flex-1 ${isActive("/support") ? "text-shop-purple" : "text-gray-500"}`}>
+            <User size={24} />
+            <span className="text-xs">Account</span>
+          </button>
+        </SheetTrigger>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader className="text-left pb-4">
+            <SheetTitle>Admin Options</SheetTitle>
+            <SheetDescription>
+              Manage your admin account or switch roles
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-4 py-2">
+            <Link to="/admin/support">
+              <Button variant="outline" className="w-full justify-start">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Support
+              </Button>
+            </Link>
+            <Button variant="outline" className="w-full justify-start" onClick={switchToCustomer}>
+              <Users className="mr-2 h-4 w-4" />
+              Switch to Customer
+            </Button>
+            <Button variant="destructive" className="w-full justify-start" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
