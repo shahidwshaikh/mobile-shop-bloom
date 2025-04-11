@@ -12,7 +12,8 @@ import {
   DialogTitle, 
   DialogTrigger,
   DialogFooter,
-  DialogClose
+  DialogClose,
+  DialogDescription
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -21,10 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import AdminNavbar from "@/components/navigation/AdminNavbar";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 // Type definition for product
 interface Product {
@@ -40,6 +41,7 @@ const categories = ["Smartphone", "Accessories", "Wearables", "Tablets", "Others
 
 const ProductManagement = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -52,11 +54,39 @@ const ProductManagement = () => {
   });
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [session, setSession] = useState<any>(null);
+
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      
+      if (!data.session) {
+        navigate("/admin/login");
+      }
+    };
+    
+    checkAuth();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          navigate("/admin/login");
+        }
+        setSession(session);
+      }
+    );
+    
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   // Fetch products from Supabase
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (session) {
+      fetchProducts();
+    }
+  }, [session]);
 
   const fetchProducts = async () => {
     try {
@@ -255,11 +285,11 @@ const ProductManagement = () => {
         description: "New product has been added successfully",
         duration: 2000,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding product:', error);
       toast({
         title: "Add failed",
-        description: "There was an error adding the product",
+        description: error.message || "There was an error adding the product",
         variant: "destructive",
       });
     } finally {
@@ -275,6 +305,14 @@ const ProductManagement = () => {
       return false;
     }
   };
+
+  if (!session) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">
@@ -294,6 +332,9 @@ const ProductManagement = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
+              <DialogDescription>
+                Fill in the details to add a new product to your inventory.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
@@ -367,15 +408,13 @@ const ProductManagement = () => {
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <DialogClose asChild>
-                <Button 
-                  onClick={handleAddProduct}
-                  disabled={!newProduct.name || !newProduct.price || !newProduct.image || processing}
-                >
-                  {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Add Product
-                </Button>
-              </DialogClose>
+              <Button 
+                onClick={handleAddProduct}
+                disabled={!newProduct.name || !newProduct.price || !newProduct.image || processing}
+              >
+                {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Add Product
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -464,6 +503,9 @@ const ProductManagement = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Update the product information below.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
@@ -534,15 +576,13 @@ const ProductManagement = () => {
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <DialogClose asChild>
-                <Button 
-                  onClick={handleUpdateProduct}
-                  disabled={processing}
-                >
-                  {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Update Product
-                </Button>
-              </DialogClose>
+              <Button 
+                onClick={handleUpdateProduct}
+                disabled={processing}
+              >
+                {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Update Product
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -37,7 +37,7 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
       }
       
       // Transform the data to match the Product type
-      const transformedProducts = data.map(item => ({
+      const transformedProducts = data.map((item: any) => ({
         id: item.id,
         name: item.name,
         price: Number(item.price),

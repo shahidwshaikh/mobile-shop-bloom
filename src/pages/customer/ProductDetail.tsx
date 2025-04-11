@@ -1,12 +1,15 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ShoppingCart, Heart, ChevronLeft, Loader2 } from "lucide-react";
+import { Heart, ShoppingCart, ChevronLeft, Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
 import { supabase } from "@/integrations/supabase/client";
 
-// Product type for Supabase data
 interface Product {
   id: string;
   name: string;
@@ -19,155 +22,175 @@ interface Product {
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [quantity, setQuantity] = useState(1);
-
-  useEffect(() => {
-    fetchProductDetails();
-  }, [id]);
-
-  const fetchProductDetails = async () => {
-    if (!id) return;
-    
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) {
-        throw error;
-      }
-      
-      setProduct(data);
-    } catch (error) {
-      console.error('Error fetching product details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load product details",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddToCart = () => {
-    if (!product) return;
-    
-    toast({
-      title: "Added to cart",
-      description: `${product.name} has been added to your cart`,
-    });
-  };
+  const [isFavorite, setIsFavorite] = useState(false);
   
-  const handleAddToWishlist = () => {
-    if (!product) return;
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (error) {
+          throw error;
+        }
+        
+        setProduct(data);
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load product details",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    toast({
-      title: "Added to wishlist",
-      description: `${product.name} has been added to your wishlist`,
-    });
-  };
+    if (id) {
+      fetchProduct();
+    }
+  }, [id, toast]);
   
   const handleBack = () => {
     navigate(-1);
   };
-
+  
+  const toggleFavorite = () => {
+    setIsFavorite(!isFavorite);
+    
+    toast({
+      title: isFavorite ? "Removed from wishlist" : "Added to wishlist",
+      description: `${product?.name} ${isFavorite ? "removed from" : "added to"} your wishlist`,
+      duration: 2000,
+    });
+  };
+  
+  const addToCart = () => {
+    toast({
+      title: "Added to cart",
+      description: `${product?.name} has been added to your cart`,
+      duration: 2000,
+    });
+  };
+  
   if (loading) {
     return (
-      <div className="flex flex-col h-screen justify-center items-center">
-        <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
-        <p className="mt-2 text-gray-500">Loading product...</p>
+      <div className="min-h-screen pb-16">
+        <div className="p-4">
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="flex justify-center items-center h-[50vh]">
+          <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+        </div>
+        <CustomerNavbar />
       </div>
     );
   }
-
+  
   if (!product) {
     return (
-      <div className="flex flex-col h-screen justify-center items-center">
-        <p className="text-lg font-medium">Product not found</p>
-        <Button variant="outline" className="mt-4" onClick={handleBack}>
-          Go back
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pb-20">
-      <div className="bg-shop-purple text-white p-4 flex items-center">
-        <button onClick={handleBack}>
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold ml-2">Product Details</h1>
-      </div>
-      
-      <div className="p-4">
-        <div className="mb-4">
-          <img 
-            src={product.image} 
-            alt={product.name}
-            className="w-full h-64 object-contain rounded-lg mb-4"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Error";
-            }}
-          />
-          
-          <h1 className="text-xl font-bold mb-1">{product.name}</h1>
-          <p className="text-shop-purple text-xl font-bold mb-2">₹{product.price.toLocaleString()}</p>
-          <p className="text-sm text-gray-500 mb-2">Category: {product.category}</p>
-          
-          <div className="flex items-center mb-4">
-            <span className={`px-2 py-1 rounded text-xs ${product.in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {product.in_stock ? 'In Stock' : 'Out of Stock'}
-            </span>
-          </div>
-          
-          <div className="flex items-center mb-6">
-            <span className="mr-2">Quantity:</span>
-            <button 
-              onClick={() => quantity > 1 && setQuantity(quantity - 1)}
-              className="px-3 py-1 border rounded-l-md bg-gray-100"
-              disabled={quantity <= 1}
-            >
-              -
-            </button>
-            <span className="px-4 py-1 border-t border-b">{quantity}</span>
-            <button 
-              onClick={() => setQuantity(quantity + 1)}
-              className="px-3 py-1 border rounded-r-md bg-gray-100"
-            >
-              +
-            </button>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button 
-              className="flex-1"
-              onClick={handleAddToCart}
-              disabled={!product.in_stock}
-            >
-              <ShoppingCart size={18} className="mr-2" />
-              Add to Cart
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleAddToWishlist}
-            >
-              <Heart size={18} />
+      <div className="min-h-screen pb-16">
+        <div className="p-4">
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div className="mt-10 text-center">
+            <h2 className="text-xl font-semibold">Product Not Found</h2>
+            <p className="mt-2 text-gray-500">The product you're looking for doesn't exist or has been removed.</p>
+            <Button className="mt-4" onClick={() => navigate('/customer/home')}>
+              Back to Shopping
             </Button>
           </div>
         </div>
+        <CustomerNavbar />
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen pb-16">
+      <div className="p-4">
+        <Button variant="ghost" size="icon" onClick={handleBack}>
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+      </div>
+      
+      <div className="px-4 pb-8">
+        <div className="relative aspect-square mb-4">
+          <img 
+            src={product.image} 
+            alt={product.name}
+            className="w-full h-full object-cover rounded-lg"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Not+Found";
+            }}
+          />
+          <button 
+            className="absolute top-3 right-3 p-2 bg-white rounded-full shadow"
+            onClick={toggleFavorite}
+          >
+            <Heart size={20} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"} />
+          </button>
+          
+          {!product.in_stock && (
+            <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center rounded-lg">
+              <Badge variant="destructive" className="text-base px-4 py-2">Out of Stock</Badge>
+            </div>
+          )}
+        </div>
         
-        <div className="mt-6">
-          <h2 className="text-lg font-medium mb-2">Product Description</h2>
-          <p className="text-gray-600">
-            Experience cutting-edge technology with the {product.name}. This {product.category.toLowerCase()} offers a perfect blend of performance and design, making it an ideal choice for all your needs.
-          </p>
+        <div className="space-y-4">
+          <div>
+            <Badge variant="outline" className="mb-2">{product.category}</Badge>
+            <h1 className="text-2xl font-bold">{product.name}</h1>
+            <p className="text-xl font-bold text-shop-purple mt-1">₹{product.price.toLocaleString()}</p>
+          </div>
+          
+          <Separator />
+          
+          <div>
+            <h2 className="font-medium mb-2">Product Description</h2>
+            <p className="text-gray-600 text-sm">
+              Experience the power and elegance of the {product.name}. 
+              This premium {product.category.toLowerCase()} offers cutting-edge technology 
+              and sleek design to enhance your digital lifestyle.
+            </p>
+          </div>
+          
+          <Card className="bg-gray-50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Availability</p>
+                <p className={`text-sm ${product.in_stock ? "text-green-600" : "text-red-600"}`}>
+                  {product.in_stock ? "In Stock" : "Out of Stock"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Category</p>
+                <p className="text-sm">{product.category}</p>
+              </div>
+            </div>
+          </Card>
+          
+          <Button 
+            className="w-full py-6" 
+            onClick={addToCart}
+            disabled={!product.in_stock}
+          >
+            <ShoppingCart className="mr-2 h-5 w-5" />
+            Add to Cart
+          </Button>
         </div>
       </div>
       
