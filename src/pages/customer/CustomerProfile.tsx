@@ -13,6 +13,7 @@ const CustomerProfile = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   
   useEffect(() => {
     const checkAuth = async () => {
@@ -25,6 +26,11 @@ const CustomerProfile = () => {
       
       try {
         setLoading(true);
+        
+        // Set the user email
+        setUserEmail(session.user.email);
+        
+        // Fetch the user profile
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -89,7 +95,7 @@ const CustomerProfile = () => {
                 <div>
                   <h2 className="font-medium text-lg">{profile?.full_name || "User"}</h2>
                   <p className="text-gray-500 text-sm">{profile?.phone || "No phone number"}</p>
-                  <p className="text-gray-500 text-sm">{supabase.auth.getUser().then(({ data }) => data.user?.email)}</p>
+                  <p className="text-gray-500 text-sm">{userEmail || "No email"}</p>
                 </div>
               </CardContent>
             </Card>

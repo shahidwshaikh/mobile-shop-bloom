@@ -22,6 +22,7 @@ const ShoppingCart = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   
   useEffect(() => {
     // Check if user is authenticated
@@ -32,6 +33,7 @@ const ShoppingCart = () => {
         // Instead of redirecting, allow the user to see the cart but require login for checkout
       } else {
         setIsAuthenticated(true);
+        setUserId(session.user.id);
       }
     };
     
@@ -103,17 +105,14 @@ const ShoppingCart = () => {
     setIsLoading(true);
     
     try {
-      // Get user ID
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error("User not authenticated");
-      
       // Create order
+      const orderTotal = calculateTotal();
+      
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: user.id,
-          total: calculateTotal(),
+          user_id: userId,
+          total: orderTotal,
           status: 'Processing'
         })
         .select()

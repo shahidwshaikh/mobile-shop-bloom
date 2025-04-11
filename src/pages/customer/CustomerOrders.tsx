@@ -39,13 +39,13 @@ const CustomerOrders = () => {
         return;
       }
       
-      fetchOrders();
+      fetchOrders(session.user.id);
     };
     
     checkAuth();
   }, [navigate]);
   
-  const fetchOrders = async () => {
+  const fetchOrders = async (userId: string) => {
     try {
       setLoading(true);
       
@@ -53,6 +53,7 @@ const CustomerOrders = () => {
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
       
       if (ordersError) throw ordersError;
