@@ -19,6 +19,9 @@ import CustomerWishlist from "@/pages/customer/CustomerWishlist";
 import CustomerProfile from "@/pages/customer/CustomerProfile";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import ProductManagement from "@/pages/admin/ProductManagement";
+import AdminOrders from "@/pages/admin/AdminOrders";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
+import AdminSupport from "@/pages/admin/AdminSupport";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +51,9 @@ const App = () => (
           <Route path="/admin/login" element={<AdminAuth />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/products" element={<ProductManagement />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/support" element={<AdminSupport />} />
           
           {/* Catch All */}
           <Route path="*" element={<NotFound />} />
