@@ -1,60 +1,13 @@
 
-import { useEffect, useState } from "react";
-import ProductCard, { Product } from "./ProductCard";
+import { useState, useEffect } from "react";
+import ProductCard from "./ProductCard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample product data
-const sampleProducts: Product[] = [
-  {
-    id: 1,
-    name: "iPhone 13 Pro Max",
-    price: 119900,
-    image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 2,
-    name: "Samsung Galaxy S21",
-    price: 69999,
-    image: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 3,
-    name: "OnePlus 9 Pro",
-    price: 64999,
-    image: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: false
-  },
-  {
-    id: 4,
-    name: "Xiaomi Mi 11",
-    price: 49999,
-    image: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 5,
-    name: "Apple AirPods Pro",
-    price: 24900,
-    image: "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77?auto=format&fit=crop&q=80&w=1000",
-    category: "Accessories",
-    inStock: true
-  },
-  {
-    id: 6,
-    name: "Samsung Galaxy Watch 4",
-    price: 26999,
-    image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=1000",
-    category: "Wearables",
-    inStock: true
-  }
-];
+// Using the Product type from ProductCard
+import { Product } from "./ProductCard";
 
 interface ProductGridProps {
   filterCategory?: string;
@@ -65,10 +18,64 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("featured");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulating API fetch
-    setProducts(sampleProducts);
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Transform the data to match the Product type
+      const transformedProducts = data.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: Number(item.price),
+        image: item.image,
+        category: item.category,
+        inStock: item.in_stock
+      }));
+      
+      setProducts(transformedProducts);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Set up subscription to real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        (payload) => {
+          console.log('Change received!', payload);
+          // Refetch products when there's any change
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -107,6 +114,14 @@ const ProductGrid = ({ filterCategory }: ProductGridProps) => {
   const handleSort = (value: string) => {
     setSortBy(value);
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

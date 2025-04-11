@@ -1,353 +1,173 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ChevronLeft, 
-  Heart, 
-  Share, 
-  ShoppingCart, 
-  Truck, 
-  Shield, 
-  MessageCircle
-} from "lucide-react";
+import { ShoppingCart, Heart, ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
-import { Product } from "@/components/products/ProductCard";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample product data
-const sampleProducts: Product[] = [
-  {
-    id: 1,
-    name: "iPhone 13 Pro Max",
-    price: 119900,
-    image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 2,
-    name: "Samsung Galaxy S21",
-    price: 69999,
-    image: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 3,
-    name: "OnePlus 9 Pro",
-    price: 64999,
-    image: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: false
-  },
-  {
-    id: 4,
-    name: "Xiaomi Mi 11",
-    price: 49999,
-    image: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 5,
-    name: "Apple AirPods Pro",
-    price: 24900,
-    image: "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77?auto=format&fit=crop&q=80&w=1000",
-    category: "Accessories",
-    inStock: true
-  },
-  {
-    id: 6,
-    name: "Samsung Galaxy Watch 4",
-    price: 26999,
-    image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=1000",
-    category: "Wearables",
-    inStock: true
-  }
-];
-
-// Product specifications based on product ID
-const productSpecs: Record<number, string[]> = {
-  1: [
-    "6.7-inch Super Retina XDR display",
-    "A15 Bionic chip",
-    "Pro camera system: 12MP",
-    "5G connectivity",
-    "All-day battery life"
-  ],
-  2: [
-    "6.2-inch Dynamic AMOLED 2X display",
-    "Exynos 2100 / Snapdragon 888",
-    "Triple camera setup: 12MP main",
-    "5G connectivity",
-    "4000mAh battery"
-  ],
-  3: [
-    "6.7-inch Fluid AMOLED display",
-    "Snapdragon 888 processor",
-    "Hasselblad Quad camera: 48MP main",
-    "5G connectivity",
-    "4500mAh battery with Warp Charge"
-  ],
-  4: [
-    "6.81-inch AMOLED display",
-    "Snapdragon 888 processor",
-    "Triple camera: 108MP main",
-    "5G connectivity",
-    "4600mAh battery"
-  ],
-  5: [
-    "Active Noise Cancellation",
-    "Transparency mode",
-    "Adaptive EQ",
-    "Spatial audio",
-    "Water and sweat resistant"
-  ],
-  6: [
-    "1.4-inch Super AMOLED display",
-    "Exynos W920 chipset",
-    "Health monitoring features",
-    "Wear OS powered by Samsung",
-    "Battery life up to 40 hours"
-  ]
-};
-
-// Product descriptions based on product ID
-const productDescriptions: Record<number, string> = {
-  1: "The iPhone 13 Pro Max features a 6.7-inch Super Retina XDR display with ProMotion, A15 Bionic chip, Pro camera system with 12MP cameras, 5G connectivity, and all-day battery life.",
-  2: "Experience epic on Galaxy S21 5G with a cinema-like viewing experience, all-day battery, and a powerful processor. Create, share, and experience more of what you love.",
-  3: "The OnePlus 9 Pro redefines smartphone photography with Hasselblad Camera for Mobile. It features a powerful Snapdragon 888 processor, silky-smooth 120Hz display, and 65W Warp Charge.",
-  4: "The Xiaomi Mi 11 comes with a professional grade triple camera array, Qualcomm Snapdragon 888 processor, stunning 6.81-inch AMOLED display, and 55W fast charging support.",
-  5: "AirPods Pro feature Active Noise Cancellation, Transparency mode, sweat and water resistance, and a customizable fit for all-day comfort.",
-  6: "The Galaxy Watch4 is designed to empower you with holistic health tracking and insight. It combines advanced sleep analysis, fitness metrics, and Samsung BioActive Sensor."
-};
+// Product type for Supabase data
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  in_stock: boolean;
+}
 
 const ProductDetail = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [quantity, setQuantity] = useState(1);
+
   useEffect(() => {
-    // Find the product by ID from our sample data
-    // In a real app, this would be a fetch call to an API
-    const productId = parseInt(id || '0');
-    const foundProduct = sampleProducts.find(p => p.id === productId);
-    
-    if (foundProduct) {
-      setProduct(foundProduct);
-    }
-    
-    setLoading(false);
+    fetchProductDetails();
   }, [id]);
-  
-  const goBack = () => {
-    navigate(-1);
-  };
-  
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
+
+  const fetchProductDetails = async () => {
+    if (!id) return;
     
-    toast({
-      title: isFavorite ? "Removed from wishlist" : "Added to wishlist",
-      description: product ? `${product.name} ${isFavorite ? "removed from" : "added to"} your wishlist` : "",
-      duration: 2000,
-    });
-  };
-  
-  const increaseQuantity = () => {
-    if (quantity < 5) {
-      setQuantity(quantity + 1);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      setProduct(data);
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load product details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
-  
-  const decreaseQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
-    }
-  };
-  
-  const addToCart = () => {
+
+  const handleAddToCart = () => {
     if (!product) return;
     
     toast({
       title: "Added to cart",
-      description: `${quantity} × ${product.name} added to your cart`,
-      duration: 2000,
+      description: `${product.name} has been added to your cart`,
     });
   };
   
-  const shareProduct = () => {
-    // In a real app, use the Web Share API
+  const handleAddToWishlist = () => {
+    if (!product) return;
+    
     toast({
-      title: "Share product",
-      description: "Sharing functionality would open here",
-      duration: 2000,
+      title: "Added to wishlist",
+      description: `${product.name} has been added to your wishlist`,
     });
   };
   
-  const contactShop = () => {
-    toast({
-      title: "Contact shop",
-      description: "Chat with shop functionality would open here",
-      duration: 2000,
-    });
+  const handleBack = () => {
+    navigate(-1);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading...</p>
+      <div className="flex flex-col h-screen justify-center items-center">
+        <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+        <p className="mt-2 text-gray-500">Loading product...</p>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <h1 className="text-2xl font-bold mb-2">Product Not Found</h1>
-        <p className="text-gray-600 mb-4">The product you're looking for doesn't exist.</p>
-        <Button onClick={goBack}>Go Back</Button>
-        <CustomerNavbar />
+      <div className="flex flex-col h-screen justify-center items-center">
+        <p className="text-lg font-medium">Product not found</p>
+        <Button variant="outline" className="mt-4" onClick={handleBack}>
+          Go back
+        </Button>
       </div>
     );
   }
 
-  const productId = parseInt(id || '0');
-  const specs = productSpecs[productId] || [];
-  const description = productDescriptions[productId] || product.name;
-
   return (
     <div className="pb-20">
-      <div className="fixed top-0 left-0 right-0 z-10 bg-white shadow-sm p-4 flex items-center">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="mr-auto" 
-          onClick={goBack}
-        >
+      <div className="bg-shop-purple text-white p-4 flex items-center">
+        <button onClick={handleBack}>
           <ChevronLeft size={24} />
-        </Button>
-        <h1 className="text-lg font-medium">Product Details</h1>
-        <div className="ml-auto flex gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleFavorite}
-          >
-            <Heart 
-              size={20} 
-              className={isFavorite ? "fill-red-500 text-red-500" : ""}
-            />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={shareProduct}
-          >
-            <Share size={20} />
-          </Button>
-        </div>
+        </button>
+        <h1 className="text-xl font-bold ml-2">Product Details</h1>
       </div>
       
-      <div className="pt-16 pb-4">
-        <div className="aspect-square bg-gray-100">
+      <div className="p-4">
+        <div className="mb-4">
           <img 
             src={product.image} 
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-64 object-contain rounded-lg mb-4"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Error";
+            }}
           />
-        </div>
-        
-        <div className="p-4 space-y-4">
-          <div>
-            <h1 className="text-xl font-bold">{product.name}</h1>
-            <p className="text-2xl font-bold text-shop-purple mt-1">
-              ₹{product.price.toLocaleString()}
-            </p>
+          
+          <h1 className="text-xl font-bold mb-1">{product.name}</h1>
+          <p className="text-shop-purple text-xl font-bold mb-2">₹{product.price.toLocaleString()}</p>
+          <p className="text-sm text-gray-500 mb-2">Category: {product.category}</p>
+          
+          <div className="flex items-center mb-4">
+            <span className={`px-2 py-1 rounded text-xs ${product.in_stock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {product.in_stock ? 'In Stock' : 'Out of Stock'}
+            </span>
           </div>
           
-          <Separator />
-          
-          <div>
-            <h2 className="font-medium mb-2">Description</h2>
-            <p className="text-gray-600">{description}</p>
+          <div className="flex items-center mb-6">
+            <span className="mr-2">Quantity:</span>
+            <button 
+              onClick={() => quantity > 1 && setQuantity(quantity - 1)}
+              className="px-3 py-1 border rounded-l-md bg-gray-100"
+              disabled={quantity <= 1}
+            >
+              -
+            </button>
+            <span className="px-4 py-1 border-t border-b">{quantity}</span>
+            <button 
+              onClick={() => setQuantity(quantity + 1)}
+              className="px-3 py-1 border rounded-r-md bg-gray-100"
+            >
+              +
+            </button>
           </div>
           
-          <div>
-            <h2 className="font-medium mb-2">Specifications</h2>
-            <ul className="list-disc pl-5 text-gray-600">
-              {specs.map((spec, index) => (
-                <li key={index}>{spec}</li>
-              ))}
-            </ul>
-          </div>
-          
-          <Card className="bg-gray-50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Truck size={20} className="text-shop-purple" />
-              <div>
-                <h3 className="font-medium">Fast Delivery</h3>
-                <p className="text-xs text-gray-500">Delivery in 3-5 business days</p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-gray-50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Shield size={20} className="text-shop-purple" />
-              <div>
-                <h3 className="font-medium">1 Year Warranty</h3>
-                <p className="text-xs text-gray-500">Official warranty from manufacturer</p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <div className="flex items-center gap-4 py-2">
-            <div className="flex items-center border rounded-md">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={decreaseQuantity} 
-                disabled={quantity <= 1}
-              >
-                -
-              </Button>
-              <span className="w-10 text-center">{quantity}</span>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={increaseQuantity} 
-                disabled={quantity >= 5}
-              >
-                +
-              </Button>
-            </div>
-            
+          <div className="flex gap-2">
             <Button 
-              className="flex-1" 
-              onClick={addToCart}
-              disabled={!product.inStock}
+              className="flex-1"
+              onClick={handleAddToCart}
+              disabled={!product.in_stock}
             >
               <ShoppingCart size={18} className="mr-2" />
-              {product.inStock ? "Add to Cart" : "Out of Stock"}
+              Add to Cart
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleAddToWishlist}
+            >
+              <Heart size={18} />
             </Button>
           </div>
-          
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={contactShop}
-          >
-            <MessageCircle size={18} className="mr-2" />
-            Contact Shop
-          </Button>
+        </div>
+        
+        <div className="mt-6">
+          <h2 className="text-lg font-medium mb-2">Product Description</h2>
+          <p className="text-gray-600">
+            Experience cutting-edge technology with the {product.name}. This {product.category.toLowerCase()} offers a perfect blend of performance and design, making it an ideal choice for all your needs.
+          </p>
         </div>
       </div>
       

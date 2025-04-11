@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { Plus, Pencil, Trash2, ChevronLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,49 +24,64 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import AdminNavbar from "@/components/navigation/AdminNavbar";
+import { supabase } from "@/integrations/supabase/client";
 
-// Sample product data
-const initialProducts = [
-  {
-    id: 1,
-    name: "iPhone 13 Pro Max",
-    price: 119900,
-    image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 2,
-    name: "Samsung Galaxy S21",
-    price: 69999,
-    image: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 3,
-    name: "OnePlus 9 Pro",
-    price: 64999,
-    image: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: false
-  }
-];
+// Type definition for product
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  in_stock: boolean;
+}
 
 const categories = ["Smartphone", "Accessories", "Wearables", "Tablets", "Others"];
 
 const ProductManagement = () => {
   const { toast } = useToast();
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
     image: "",
     category: "Smartphone",
-    inStock: true
+    in_stock: true
   });
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+
+  // Fetch products from Supabase
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      toast({
+        title: "Failed to load products",
+        description: "Please check your connection and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -77,82 +92,188 @@ const ProductManagement = () => {
     product.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleToggleStock = (id: number) => {
-    setProducts(products.map(product => 
-      product.id === id ? { ...product, inStock: !product.inStock } : product
-    ));
-    
-    toast({
-      title: "Product updated",
-      description: "Product stock status has been updated",
-      duration: 2000,
-    });
+  const handleToggleStock = async (id: string, currentStock: boolean) => {
+    try {
+      setProcessing(true);
+      const { error } = await supabase
+        .from('products')
+        .update({ in_stock: !currentStock })
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      setProducts(products.map(product => 
+        product.id === id ? { ...product, in_stock: !currentStock } : product
+      ));
+      
+      toast({
+        title: "Product updated",
+        description: "Product stock status has been updated",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error updating product:', error);
+      toast({
+        title: "Update failed",
+        description: "There was an error updating the product",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleDeleteProduct = (id: number) => {
-    setProducts(products.filter(product => product.id !== id));
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this product?")) {
+      return;
+    }
     
-    toast({
-      title: "Product deleted",
-      description: "Product has been deleted successfully",
-      duration: 2000,
-    });
+    try {
+      setProcessing(true);
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      setProducts(products.filter(product => product.id !== id));
+      
+      toast({
+        title: "Product deleted",
+        description: "Product has been deleted successfully",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast({
+        title: "Delete failed",
+        description: "There was an error deleting the product",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleEditProduct = (product: any) => {
+  const handleEditProduct = (product: Product) => {
     setEditingProduct({
       ...product,
-      price: product.price.toString()
+      price: product.price
     });
   };
 
-  const handleUpdateProduct = () => {
-    setProducts(products.map(product => 
-      product.id === editingProduct.id 
-        ? { 
-            ...editingProduct, 
-            price: parseFloat(editingProduct.price)
-          } 
-        : product
-    ));
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return;
     
-    setEditingProduct(null);
-    
-    toast({
-      title: "Product updated",
-      description: "Product details have been updated",
-      duration: 2000,
-    });
-  };
-
-  const handleAddProduct = () => {
-    const newId = Math.max(...products.map(p => p.id), 0) + 1;
-    
-    setProducts([
-      ...products,
-      {
-        id: newId,
-        name: newProduct.name,
-        price: parseFloat(newProduct.price),
-        image: newProduct.image,
-        category: newProduct.category,
-        inStock: newProduct.inStock
+    try {
+      setProcessing(true);
+      const { error } = await supabase
+        .from('products')
+        .update({
+          name: editingProduct.name,
+          price: parseFloat(editingProduct.price.toString()),
+          image: editingProduct.image,
+          category: editingProduct.category,
+          in_stock: editingProduct.in_stock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingProduct.id);
+      
+      if (error) {
+        throw error;
       }
-    ]);
+      
+      setProducts(products.map(product => 
+        product.id === editingProduct.id ? editingProduct : product
+      ));
+      
+      setEditingProduct(null);
+      
+      toast({
+        title: "Product updated",
+        description: "Product details have been updated",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error updating product:', error);
+      toast({
+        title: "Update failed",
+        description: "There was an error updating the product",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAddProduct = async () => {
+    if (!newProduct.name || !newProduct.price || !newProduct.image) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    setNewProduct({
-      name: "",
-      price: "",
-      image: "",
-      category: "Smartphone",
-      inStock: true
-    });
-    
-    toast({
-      title: "Product added",
-      description: "New product has been added successfully",
-      duration: 2000,
-    });
+    try {
+      setProcessing(true);
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          name: newProduct.name,
+          price: parseFloat(newProduct.price),
+          image: newProduct.image,
+          category: newProduct.category,
+          in_stock: newProduct.in_stock
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        setProducts([data[0], ...products]);
+      }
+      
+      setNewProduct({
+        name: "",
+        price: "",
+        image: "",
+        category: "Smartphone",
+        in_stock: true
+      });
+      
+      toast({
+        title: "Product added",
+        description: "New product has been added successfully",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error adding product:', error);
+      toast({
+        title: "Add failed",
+        description: "There was an error adding the product",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const validateImageUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   return (
@@ -164,6 +285,7 @@ const ProductManagement = () => {
             <Button 
               size="sm" 
               className="ml-auto"
+              disabled={processing}
             >
               <Plus size={16} className="mr-1" />
               Add Product
@@ -175,7 +297,7 @@ const ProductManagement = () => {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Product Name</label>
+                <label className="text-sm font-medium">Product Name *</label>
                 <Input 
                   value={newProduct.name} 
                   onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
@@ -183,7 +305,7 @@ const ProductManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Price (₹)</label>
+                <label className="text-sm font-medium">Price (₹) *</label>
                 <Input 
                   type="number" 
                   value={newProduct.price} 
@@ -192,15 +314,31 @@ const ProductManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Image URL</label>
+                <label className="text-sm font-medium">Image URL *</label>
                 <Input 
                   value={newProduct.image} 
                   onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
                   placeholder="Enter image URL" 
                 />
+                {newProduct.image && !validateImageUrl(newProduct.image) && (
+                  <p className="text-xs text-red-500">Please enter a valid URL</p>
+                )}
+                {newProduct.image && validateImageUrl(newProduct.image) && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 mb-1">Image Preview:</p>
+                    <img 
+                      src={newProduct.image} 
+                      alt="Preview" 
+                      className="w-full h-32 object-contain border rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Error";
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
+                <label className="text-sm font-medium">Category *</label>
                 <Select 
                   value={newProduct.category}
                   onValueChange={(value) => setNewProduct({...newProduct, category: value})}
@@ -219,8 +357,8 @@ const ProductManagement = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Switch 
-                  checked={newProduct.inStock} 
-                  onCheckedChange={(checked) => setNewProduct({...newProduct, inStock: checked})}
+                  checked={newProduct.in_stock} 
+                  onCheckedChange={(checked) => setNewProduct({...newProduct, in_stock: checked})}
                 />
                 <label className="text-sm font-medium">In Stock</label>
               </div>
@@ -230,7 +368,13 @@ const ProductManagement = () => {
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
               <DialogClose asChild>
-                <Button onClick={handleAddProduct}>Add Product</Button>
+                <Button 
+                  onClick={handleAddProduct}
+                  disabled={!newProduct.name || !newProduct.price || !newProduct.image || processing}
+                >
+                  {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Add Product
+                </Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>
@@ -245,13 +389,17 @@ const ProductManagement = () => {
           className="mb-4"
         />
         
-        <div className="space-y-4">
-          {filteredProducts.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No products found</p>
-            </div>
-          ) : (
-            filteredProducts.map((product) => (
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500">No products found</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredProducts.map((product) => (
               <Card key={product.id}>
                 <CardContent className="p-4">
                   <div className="flex gap-3">
@@ -259,6 +407,9 @@ const ProductManagement = () => {
                       src={product.image} 
                       alt={product.name}
                       className="w-20 h-20 object-cover rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Error";
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-base line-clamp-1">{product.name}</h3>
@@ -268,11 +419,12 @@ const ProductManagement = () => {
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-2">
                           <Switch 
-                            checked={product.inStock} 
-                            onCheckedChange={() => handleToggleStock(product.id)}
+                            checked={product.in_stock} 
+                            onCheckedChange={() => handleToggleStock(product.id, product.in_stock)}
+                            disabled={processing}
                           />
                           <span className="text-xs">
-                            {product.inStock ? "In Stock" : "Out of Stock"}
+                            {product.in_stock ? "In Stock" : "Out of Stock"}
                           </span>
                         </div>
                         
@@ -282,6 +434,7 @@ const ProductManagement = () => {
                             size="icon" 
                             className="h-8 w-8"
                             onClick={() => handleEditProduct(product)}
+                            disabled={processing}
                           >
                             <Pencil size={16} />
                           </Button>
@@ -290,6 +443,7 @@ const ProductManagement = () => {
                             size="icon" 
                             className="h-8 w-8 text-red-500 hover:text-red-600"
                             onClick={() => handleDeleteProduct(product.id)}
+                            disabled={processing}
                           >
                             <Trash2 size={16} />
                           </Button>
@@ -299,9 +453,9 @@ const ProductManagement = () => {
                   </div>
                 </CardContent>
               </Card>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
       
       {/* Edit Product Modal */}
@@ -325,7 +479,7 @@ const ProductManagement = () => {
                 <Input 
                   type="number" 
                   value={editingProduct.price} 
-                  onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})}
+                  onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})}
                   placeholder="Enter price" 
                 />
               </div>
@@ -336,6 +490,19 @@ const ProductManagement = () => {
                   onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})}
                   placeholder="Enter image URL" 
                 />
+                {editingProduct.image && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 mb-1">Image Preview:</p>
+                    <img 
+                      src={editingProduct.image} 
+                      alt="Preview" 
+                      className="w-full h-32 object-contain border rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Error";
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Category</label>
@@ -357,8 +524,8 @@ const ProductManagement = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Switch 
-                  checked={editingProduct.inStock} 
-                  onCheckedChange={(checked) => setEditingProduct({...editingProduct, inStock: checked})}
+                  checked={editingProduct.in_stock} 
+                  onCheckedChange={(checked) => setEditingProduct({...editingProduct, in_stock: checked})}
                 />
                 <label className="text-sm font-medium">In Stock</label>
               </div>
@@ -368,7 +535,13 @@ const ProductManagement = () => {
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
               <DialogClose asChild>
-                <Button onClick={handleUpdateProduct}>Update Product</Button>
+                <Button 
+                  onClick={handleUpdateProduct}
+                  disabled={processing}
+                >
+                  {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Update Product
+                </Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>

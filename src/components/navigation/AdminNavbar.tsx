@@ -1,12 +1,35 @@
 
-import { LayoutDashboard, Package, ShoppingBag, BarChart, MessageSquare, User } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingBag, BarChart, MessageSquare, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 const AdminNavbar = () => {
   const location = useLocation();
+  const { toast } = useToast();
   
   const isActive = (path: string) => {
     return location.pathname.includes(path);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account",
+        duration: 3000,
+      });
+      // Navigate to login page after logout
+      window.location.href = "/admin/login";
+    } catch (error) {
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
   return (
@@ -50,6 +73,14 @@ const AdminNavbar = () => {
         <MessageSquare size={24} />
         <span className="text-xs">Support</span>
       </Link>
+      
+      <button 
+        onClick={handleLogout}
+        className="nav-item flex flex-col items-center justify-center gap-1 flex-1 text-gray-500"
+      >
+        <LogOut size={24} />
+        <span className="text-xs">Logout</span>
+      </button>
     </div>
   );
 };
