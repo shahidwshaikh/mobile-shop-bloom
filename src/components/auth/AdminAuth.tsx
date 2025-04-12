@@ -15,6 +15,7 @@ const AdminAuth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [shopOwnerName, setShopOwnerName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   
   useEffect(() => {
@@ -40,7 +41,7 @@ const AdminAuth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!email || !password || (isSignUp && !shopOwnerName)) {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields",
@@ -57,6 +58,12 @@ const AdminAuth = () => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              full_name: shopOwnerName,
+              is_admin: true
+            },
+          },
         });
         
         if (error) throw error;
@@ -113,6 +120,21 @@ const AdminAuth = () => {
         
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <label htmlFor="shopOwnerName" className="text-sm font-medium">Shop Owner Name</label>
+                <Input 
+                  id="shopOwnerName"
+                  type="text" 
+                  placeholder="Your Name"
+                  value={shopOwnerName}
+                  onChange={(e) => setShopOwnerName(e.target.value)}
+                  disabled={loading}
+                  required={isSignUp}
+                />
+              </div>
+            )}
+            
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">Email</label>
               <Input 
@@ -122,6 +144,7 @@ const AdminAuth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
+                required
               />
             </div>
             
@@ -135,6 +158,7 @@ const AdminAuth = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
+                  required
                 />
                 <button 
                   type="button"
