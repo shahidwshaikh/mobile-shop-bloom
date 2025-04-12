@@ -166,7 +166,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_to_wishlist: {
+        Args: { p_product_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      delete_wishlist_item: {
+        Args: { p_wishlist_id: string }
+        Returns: undefined
+      }
+      get_user_wishlist: {
+        Args: { p_user_id: string }
+        Returns: {
+          wishlist_id: string
+          id: string
+          name: string
+          price: number
+          image: string
+          category: string
+          in_stock: boolean
+        }[]
+      }
+      get_wishlist_status: {
+        Args: { p_product_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      remove_from_wishlist: {
+        Args: { p_product_id: string; p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -33,12 +33,12 @@ const CustomerWishlist = () => {
         return;
       }
       
-      // Using raw SQL function call to avoid type errors with the wishlist table
       const { data, error } = await supabase.rpc('get_user_wishlist', {
         p_user_id: session.session.user.id
       });
       
       if (error) {
+        console.error("Error fetching wishlist:", error);
         throw error;
       }
       
@@ -68,12 +68,12 @@ const CustomerWishlist = () => {
 
   const removeFromWishlist = async (wishlistId: string, productName: string) => {
     try {
-      // Using raw SQL function call to avoid type errors
       const { error } = await supabase.rpc('delete_wishlist_item', {
         p_wishlist_id: wishlistId
       });
       
       if (error) {
+        console.error("Error deleting wishlist item:", error);
         throw error;
       }
       

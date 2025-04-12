@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
-  id: number | string;
+  id: string;
   name: string;
   price: number;
   image: string;
@@ -31,11 +31,15 @@ const ProductCard = ({ product }: ProductCardProps) => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) return;
       
-      const { data } = await supabase
-        .rpc('get_wishlist_status', {
-          p_product_id: product.id,
-          p_user_id: session.session.user.id
-        });
+      const { data, error } = await supabase.rpc('get_wishlist_status', {
+        p_product_id: product.id,
+        p_user_id: session.session.user.id
+      });
+      
+      if (error) {
+        console.error("Error checking wishlist status:", error);
+        return;
+      }
       
       if (data) {
         setIsFavorite(true);
@@ -65,18 +69,16 @@ const ProductCard = ({ product }: ProductCardProps) => {
     const userId = session.session.user.id;
     
     if (isFavorite) {
-      // Remove from wishlist using raw SQL via RPC
-      const { error } = await supabase
-        .rpc('remove_from_wishlist', {
-          p_product_id: product.id,
-          p_user_id: userId
-        });
+      const { error } = await supabase.rpc('remove_from_wishlist', {
+        p_product_id: product.id,
+        p_user_id: userId
+      });
       
       if (error) {
         console.error("Error removing from wishlist:", error);
         toast({
           title: "Error",
-          description: "Failed to remove from wishlist",
+          description: "Failed to remove from wishlist: " + error.message,
           variant: "destructive",
         });
         return;
@@ -89,18 +91,16 @@ const ProductCard = ({ product }: ProductCardProps) => {
         duration: 2000,
       });
     } else {
-      // Add to wishlist using raw SQL via RPC
-      const { error } = await supabase
-        .rpc('add_to_wishlist', {
-          p_product_id: product.id,
-          p_user_id: userId
-        });
+      const { error } = await supabase.rpc('add_to_wishlist', {
+        p_product_id: product.id,
+        p_user_id: userId
+      });
       
       if (error) {
         console.error("Error adding to wishlist:", error);
         toast({
           title: "Error",
-          description: "Failed to add to wishlist",
+          description: "Failed to add to wishlist: " + error.message,
           variant: "destructive",
         });
         return;

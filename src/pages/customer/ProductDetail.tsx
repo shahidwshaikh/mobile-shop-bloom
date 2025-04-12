@@ -32,6 +32,8 @@ const ProductDetail = () => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
+        if (!id) return;
+        
         const { data, error } = await supabase
           .from('products')
           .select('*')
@@ -47,13 +49,17 @@ const ProductDetail = () => {
         // Check if product is in wishlist using RPC function
         const { data: session } = await supabase.auth.getSession();
         if (session.session && id) {
-          const { data: wishlistData } = await supabase
+          const { data: wishlistData, error: wishlistError } = await supabase
             .rpc('get_wishlist_status', {
               p_product_id: id,
               p_user_id: session.session.user.id
             });
           
-          setIsFavorite(!!wishlistData);
+          if (wishlistError) {
+            console.error("Error checking wishlist status:", wishlistError);
+          } else {
+            setIsFavorite(!!wishlistData);
+          }
         }
       } catch (error) {
         console.error('Error fetching product:', error);
@@ -89,7 +95,7 @@ const ProductDetail = () => {
     
     const userId = session.session.user.id;
     
-    if (!id) return;
+    if (!id || !product) return;
     
     if (isFavorite) {
       // Remove from wishlist using RPC
@@ -103,7 +109,7 @@ const ProductDetail = () => {
         console.error("Error removing from wishlist:", error);
         toast({
           title: "Error",
-          description: "Failed to remove from wishlist",
+          description: "Failed to remove from wishlist: " + error.message,
           variant: "destructive",
         });
         return;
@@ -112,7 +118,7 @@ const ProductDetail = () => {
       setIsFavorite(false);
       toast({
         title: "Removed from wishlist",
-        description: `${product?.name} removed from your wishlist`,
+        description: `${product.name} removed from your wishlist`,
         duration: 2000,
       });
     } else {
@@ -127,7 +133,7 @@ const ProductDetail = () => {
         console.error("Error adding to wishlist:", error);
         toast({
           title: "Error",
-          description: "Failed to add to wishlist",
+          description: "Failed to add to wishlist: " + error.message,
           variant: "destructive",
         });
         return;
@@ -136,7 +142,7 @@ const ProductDetail = () => {
       setIsFavorite(true);
       toast({
         title: "Added to wishlist",
-        description: `${product?.name} added to your wishlist`,
+        description: `${product.name} added to your wishlist`,
         duration: 2000,
       });
     }
@@ -261,9 +267,9 @@ const ProductDetail = () => {
         
         <div className="space-y-4">
           <div>
-            <Badge variant="outline" className="mb-2">{product.category}</Badge>
-            <h1 className="text-2xl font-bold">{product.name}</h1>
-            <p className="text-xl font-bold text-shop-purple mt-1">₹{product.price.toLocaleString()}</p>
+            <Badge variant="outline" className="mb-2">{product?.category}</Badge>
+            <h1 className="text-2xl font-bold">{product?.name}</h1>
+            <p className="text-xl font-bold text-shop-purple mt-1">₹{product?.price.toLocaleString()}</p>
           </div>
           
           <Separator />
@@ -271,8 +277,8 @@ const ProductDetail = () => {
           <div>
             <h2 className="font-medium mb-2">Product Description</h2>
             <p className="text-gray-600 text-sm">
-              Experience the power and elegance of the {product.name}. 
-              This premium {product.category.toLowerCase()} offers cutting-edge technology 
+              Experience the power and elegance of the {product?.name}. 
+              This premium {product?.category?.toLowerCase()} offers cutting-edge technology 
               and sleek design to enhance your digital lifestyle.
             </p>
           </div>
@@ -281,13 +287,13 @@ const ProductDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Availability</p>
-                <p className={`text-sm ${product.in_stock ? "text-green-600" : "text-red-600"}`}>
-                  {product.in_stock ? "In Stock" : "Out of Stock"}
+                <p className={`text-sm ${product?.in_stock ? "text-green-600" : "text-red-600"}`}>
+                  {product?.in_stock ? "In Stock" : "Out of Stock"}
                 </p>
               </div>
               <div>
                 <p className="text-sm font-medium">Category</p>
-                <p className="text-sm">{product.category}</p>
+                <p className="text-sm">{product?.category}</p>
               </div>
             </div>
           </Card>
@@ -295,7 +301,7 @@ const ProductDetail = () => {
           <Button 
             className="w-full py-6" 
             onClick={addToCart}
-            disabled={!product.in_stock}
+            disabled={!product?.in_stock}
           >
             <ShoppingCart className="mr-2 h-5 w-5" />
             Add to Cart
