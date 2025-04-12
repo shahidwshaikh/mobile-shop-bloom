@@ -43,6 +43,19 @@ const ProductDetail = () => {
         }
         
         setProduct(data);
+        
+        // Check if product is in wishlist
+        const { data: session } = await supabase.auth.getSession();
+        if (session.session) {
+          const { data: wishlistData } = await supabase
+            .from('wishlists')
+            .select('*')
+            .eq('product_id', id)
+            .eq('user_id', session.session.user.id)
+            .maybeSingle();
+          
+          setIsFavorite(!!wishlistData);
+        }
       } catch (error) {
         console.error('Error fetching product:', error);
         toast({
@@ -64,14 +77,69 @@ const ProductDetail = () => {
     navigate(-1);
   };
   
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
+  const toggleFavorite = async () => {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      toast({
+        title: "Login required",
+        description: "Please log in to add items to your wishlist",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    toast({
-      title: isFavorite ? "Removed from wishlist" : "Added to wishlist",
-      description: `${product?.name} ${isFavorite ? "removed from" : "added to"} your wishlist`,
-      duration: 2000,
-    });
+    const userId = session.session.user.id;
+    
+    if (isFavorite) {
+      // Remove from wishlist
+      const { error } = await supabase
+        .from('wishlists')
+        .delete()
+        .eq('product_id', id)
+        .eq('user_id', userId);
+      
+      if (error) {
+        console.error("Error removing from wishlist:", error);
+        toast({
+          title: "Error",
+          description: "Failed to remove from wishlist",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsFavorite(false);
+      toast({
+        title: "Removed from wishlist",
+        description: `${product?.name} removed from your wishlist`,
+        duration: 2000,
+      });
+    } else {
+      // Add to wishlist
+      const { error } = await supabase
+        .from('wishlists')
+        .insert({
+          user_id: userId,
+          product_id: id,
+        });
+      
+      if (error) {
+        console.error("Error adding to wishlist:", error);
+        toast({
+          title: "Error",
+          description: "Failed to add to wishlist",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsFavorite(true);
+      toast({
+        title: "Added to wishlist",
+        description: `${product?.name} added to your wishlist`,
+        duration: 2000,
+      });
+    }
   };
   
   const addToCart = () => {
@@ -170,8 +238,8 @@ const ProductDetail = () => {
       <div className="px-4 pb-8">
         <div className="relative aspect-square mb-4">
           <img 
-            src={product.image} 
-            alt={product.name}
+            src={product?.image} 
+            alt={product?.name}
             className="w-full h-full object-cover rounded-lg"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "https://placehold.co/400x400?text=Image+Not+Found";
@@ -184,7 +252,7 @@ const ProductDetail = () => {
             <Heart size={20} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"} />
           </button>
           
-          {!product.in_stock && (
+          {product && !product.in_stock && (
             <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center rounded-lg">
               <Badge variant="destructive" className="text-base px-4 py-2">Out of Stock</Badge>
             </div>

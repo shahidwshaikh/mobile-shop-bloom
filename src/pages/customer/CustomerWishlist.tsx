@@ -1,36 +1,182 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
-import ProductCard, { Product } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
-import { Heart } from "lucide-react";
+import { Heart, ShoppingCart, Trash2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
+import { Product } from "@/components/products/ProductCard";
 
-// Sample wishlist data (for demonstration)
-const sampleWishlistProducts: Product[] = [
-  {
-    id: 1,
-    name: "iPhone 13 Pro Max",
-    price: 119900,
-    image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
-    category: "Smartphone",
-    inStock: true
-  },
-  {
-    id: 5,
-    name: "Apple AirPods Pro",
-    price: 24900,
-    image: "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77?auto=format&fit=crop&q=80&w=1000",
-    category: "Accessories",
-    inStock: true
-  }
-];
+interface WishlistItem extends Product {
+  wishlist_id: string;
+}
 
 const CustomerWishlist = () => {
-  const [wishlistItems, setWishlistItems] = useState<Product[]>(sampleWishlistProducts);
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const removeFromWishlist = (productId: number) => {
-    setWishlistItems(wishlistItems.filter(item => item.id !== productId));
+  // Fetch wishlist items
+  useEffect(() => {
+    fetchWishlistItems();
+  }, []);
+
+  const fetchWishlistItems = async () => {
+    try {
+      setLoading(true);
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        navigate("/customer/login");
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('wishlists')
+        .select(`
+          id,
+          product_id,
+          products (
+            id,
+            name,
+            price,
+            image,
+            category,
+            in_stock
+          )
+        `)
+        .eq('user_id', session.session.user.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Transform the data to match the WishlistItem type
+      const transformedItems: WishlistItem[] = data.map((item: any) => ({
+        wishlist_id: item.id,
+        id: item.products.id,
+        name: item.products.name,
+        price: item.products.price,
+        image: item.products.image,
+        category: item.products.category,
+        inStock: item.products.in_stock
+      }));
+      
+      setWishlistItems(transformedItems);
+    } catch (error) {
+      console.error('Error fetching wishlist items:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load wishlist items",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const removeFromWishlist = async (wishlistId: string, productName: string) => {
+    try {
+      const { error } = await supabase
+        .from('wishlists')
+        .delete()
+        .eq('id', wishlistId);
+      
+      if (error) {
+        throw error;
+      }
+      
+      setWishlistItems(wishlistItems.filter(item => item.wishlist_id !== wishlistId));
+      
+      toast({
+        title: "Removed from wishlist",
+        description: `${productName} has been removed from your wishlist`,
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error removing from wishlist:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove item from wishlist",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const addToCart = (product: WishlistItem) => {
+    if (!product.inStock) {
+      toast({
+        title: "Product unavailable",
+        description: "This product is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Get existing cart items from localStorage
+    const existingCartStr = localStorage.getItem('cart');
+    const existingCart = existingCartStr ? JSON.parse(existingCartStr) : [];
+    
+    // Check if product is already in cart
+    const existingItem = existingCart.find((item: any) => item.id === product.id);
+    
+    let updatedCart;
+    
+    if (existingItem) {
+      // Increment quantity of existing item (up to max of 5)
+      updatedCart = existingCart.map((item: any) => 
+        item.id === product.id 
+          ? { ...item, quantity: Math.min(item.quantity + 1, 5) } 
+          : item
+      );
+      
+      toast({
+        title: "Cart updated",
+        description: `Quantity of ${product.name} increased in your cart`,
+        duration: 2000,
+      });
+    } else {
+      // Add new item to cart
+      updatedCart = [
+        ...existingCart, 
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          image: product.image,
+          quantity: 1
+        }
+      ];
+      
+      toast({
+        title: "Added to cart",
+        description: `${product.name} has been added to your cart`,
+        duration: 2000,
+      });
+    }
+    
+    // Save updated cart to localStorage
+    localStorage.setItem('cart', JSON.stringify(updatedCart));
+  };
+
+  if (loading) {
+    return (
+      <div className="pb-20">
+        <div className="bg-shop-purple text-white p-4">
+          <h1 className="text-xl font-bold">My Wishlist</h1>
+          <p className="text-sm opacity-90">Products you've saved for later</p>
+        </div>
+        
+        <div className="flex justify-center items-center h-[70vh]">
+          <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+        </div>
+        
+        <CustomerNavbar />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">
@@ -43,28 +189,44 @@ const CustomerWishlist = () => {
         {wishlistItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {wishlistItems.map(product => (
-              <div key={product.id} className="relative border rounded-lg p-3">
+              <div key={product.wishlist_id} className="relative border rounded-lg p-3">
                 <div className="flex gap-3">
                   <img 
                     src={product.image} 
                     alt={product.name} 
                     className="w-24 h-24 object-cover rounded-md"
+                    onClick={() => navigate(`/customer/product/${product.id}`)}
                   />
                   <div className="flex-1">
-                    <h3 className="font-medium">{product.name}</h3>
-                    <p className="text-gray-700">₹{(product.price / 100).toLocaleString()}</p>
+                    <h3 
+                      className="font-medium cursor-pointer"
+                      onClick={() => navigate(`/customer/product/${product.id}`)}
+                    >
+                      {product.name}
+                    </h3>
+                    <p className="text-gray-700">₹{product.price.toLocaleString()}</p>
                     <p className="text-sm text-gray-500">{product.category}</p>
+                    {!product.inStock && (
+                      <p className="text-red-500 text-sm mt-1">Out of stock</p>
+                    )}
                     
                     <div className="flex gap-2 mt-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => addToCart(product)}
+                        disabled={!product.inStock}
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-1" />
                         Add to Cart
                       </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         className="text-red-500 hover:text-red-700"
-                        onClick={() => removeFromWishlist(product.id)}
+                        onClick={() => removeFromWishlist(product.wishlist_id, product.name)}
                       >
+                        <Trash2 className="h-4 w-4 mr-1" />
                         Remove
                       </Button>
                     </div>

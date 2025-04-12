@@ -1,10 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Heart } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
   id: number;
@@ -23,20 +24,97 @@ const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isFavorite, setIsFavorite] = useState(false);
+  
+  // Check if the product is in wishlist on component mount
+  useEffect(() => {
+    const checkWishlistStatus = async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) return;
+      
+      const { data } = await supabase
+        .from('wishlists')
+        .select('*')
+        .eq('product_id', product.id)
+        .eq('user_id', session.session.user.id)
+        .maybeSingle();
+      
+      if (data) {
+        setIsFavorite(true);
+      }
+    };
+    
+    checkWishlistStatus();
+  }, [product.id]);
 
   const handleNavigate = () => {
     navigate(`/customer/product/${product.id}`);
   };
 
-  const toggleFavorite = (e: React.MouseEvent) => {
+  const toggleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsFavorite(!isFavorite);
     
-    toast({
-      title: isFavorite ? "Removed from wishlist" : "Added to wishlist",
-      description: `${product.name} ${isFavorite ? "removed from" : "added to"} your wishlist`,
-      duration: 2000,
-    });
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      toast({
+        title: "Login required",
+        description: "Please log in to add items to your wishlist",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const userId = session.session.user.id;
+    
+    if (isFavorite) {
+      // Remove from wishlist
+      const { error } = await supabase
+        .from('wishlists')
+        .delete()
+        .eq('product_id', product.id)
+        .eq('user_id', userId);
+      
+      if (error) {
+        console.error("Error removing from wishlist:", error);
+        toast({
+          title: "Error",
+          description: "Failed to remove from wishlist",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsFavorite(false);
+      toast({
+        title: "Removed from wishlist",
+        description: `${product.name} removed from your wishlist`,
+        duration: 2000,
+      });
+    } else {
+      // Add to wishlist
+      const { error } = await supabase
+        .from('wishlists')
+        .insert({
+          user_id: userId,
+          product_id: product.id,
+        });
+      
+      if (error) {
+        console.error("Error adding to wishlist:", error);
+        toast({
+          title: "Error",
+          description: "Failed to add to wishlist",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsFavorite(true);
+      toast({
+        title: "Added to wishlist",
+        description: `${product.name} added to your wishlist`,
+        duration: 2000,
+      });
+    }
   };
 
   return (
