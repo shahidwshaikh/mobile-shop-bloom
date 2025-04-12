@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, ChevronLeft, Loader2 } from "lucide-react";
@@ -44,15 +43,14 @@ const ProductDetail = () => {
         
         setProduct(data);
         
-        // Check if product is in wishlist
+        // Check if product is in wishlist using RPC function
         const { data: session } = await supabase.auth.getSession();
         if (session.session) {
           const { data: wishlistData } = await supabase
-            .from('wishlists')
-            .select('*')
-            .eq('product_id', id)
-            .eq('user_id', session.session.user.id)
-            .maybeSingle();
+            .rpc('get_wishlist_status', {
+              p_product_id: id,
+              p_user_id: session.session.user.id
+            });
           
           setIsFavorite(!!wishlistData);
         }
@@ -91,12 +89,12 @@ const ProductDetail = () => {
     const userId = session.session.user.id;
     
     if (isFavorite) {
-      // Remove from wishlist
+      // Remove from wishlist using RPC
       const { error } = await supabase
-        .from('wishlists')
-        .delete()
-        .eq('product_id', id)
-        .eq('user_id', userId);
+        .rpc('remove_from_wishlist', {
+          p_product_id: id,
+          p_user_id: userId
+        });
       
       if (error) {
         console.error("Error removing from wishlist:", error);
@@ -115,12 +113,11 @@ const ProductDetail = () => {
         duration: 2000,
       });
     } else {
-      // Add to wishlist
+      // Add to wishlist using RPC
       const { error } = await supabase
-        .from('wishlists')
-        .insert({
-          user_id: userId,
-          product_id: id,
+        .rpc('add_to_wishlist', {
+          p_product_id: id,
+          p_user_id: userId
         });
       
       if (error) {

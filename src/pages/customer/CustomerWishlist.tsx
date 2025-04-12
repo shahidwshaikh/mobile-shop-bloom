@@ -33,21 +33,10 @@ const CustomerWishlist = () => {
         return;
       }
       
-      const { data, error } = await supabase
-        .from('wishlists')
-        .select(`
-          id,
-          product_id,
-          products (
-            id,
-            name,
-            price,
-            image,
-            category,
-            in_stock
-          )
-        `)
-        .eq('user_id', session.session.user.id);
+      // Using raw SQL function call to avoid type errors with the wishlist table
+      const { data, error } = await supabase.rpc('get_user_wishlist', {
+        p_user_id: session.session.user.id
+      });
       
       if (error) {
         throw error;
@@ -55,13 +44,13 @@ const CustomerWishlist = () => {
       
       // Transform the data to match the WishlistItem type
       const transformedItems: WishlistItem[] = data.map((item: any) => ({
-        wishlist_id: item.id,
-        id: item.products.id,
-        name: item.products.name,
-        price: item.products.price,
-        image: item.products.image,
-        category: item.products.category,
-        inStock: item.products.in_stock
+        wishlist_id: item.wishlist_id,
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        category: item.category,
+        inStock: item.in_stock
       }));
       
       setWishlistItems(transformedItems);
@@ -79,10 +68,10 @@ const CustomerWishlist = () => {
 
   const removeFromWishlist = async (wishlistId: string, productName: string) => {
     try {
-      const { error } = await supabase
-        .from('wishlists')
-        .delete()
-        .eq('id', wishlistId);
+      // Using raw SQL function call to avoid type errors
+      const { error } = await supabase.rpc('delete_wishlist_item', {
+        p_wishlist_id: wishlistId
+      });
       
       if (error) {
         throw error;

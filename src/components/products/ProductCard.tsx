@@ -31,12 +31,12 @@ const ProductCard = ({ product }: ProductCardProps) => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) return;
       
+      // Using raw SQL query instead of `.from('wishlists')` to avoid type errors
       const { data } = await supabase
-        .from('wishlists')
-        .select('*')
-        .eq('product_id', product.id)
-        .eq('user_id', session.session.user.id)
-        .maybeSingle();
+        .rpc('get_wishlist_status', {
+          p_product_id: String(product.id),
+          p_user_id: session.session.user.id
+        });
       
       if (data) {
         setIsFavorite(true);
@@ -66,12 +66,12 @@ const ProductCard = ({ product }: ProductCardProps) => {
     const userId = session.session.user.id;
     
     if (isFavorite) {
-      // Remove from wishlist
+      // Remove from wishlist using raw SQL via RPC
       const { error } = await supabase
-        .from('wishlists')
-        .delete()
-        .eq('product_id', product.id)
-        .eq('user_id', userId);
+        .rpc('remove_from_wishlist', {
+          p_product_id: String(product.id),
+          p_user_id: userId
+        });
       
       if (error) {
         console.error("Error removing from wishlist:", error);
@@ -90,12 +90,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
         duration: 2000,
       });
     } else {
-      // Add to wishlist
+      // Add to wishlist using raw SQL via RPC
       const { error } = await supabase
-        .from('wishlists')
-        .insert({
-          user_id: userId,
-          product_id: product.id,
+        .rpc('add_to_wishlist', {
+          p_product_id: String(product.id),
+          p_user_id: userId
         });
       
       if (error) {
