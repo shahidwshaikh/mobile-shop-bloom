@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, ChevronLeft, Loader2 } from "lucide-react";
@@ -45,7 +46,7 @@ const ProductDetail = () => {
         
         // Check if product is in wishlist using RPC function
         const { data: session } = await supabase.auth.getSession();
-        if (session.session) {
+        if (session.session && id) {
           const { data: wishlistData } = await supabase
             .rpc('get_wishlist_status', {
               p_product_id: id,
@@ -87,6 +88,8 @@ const ProductDetail = () => {
     }
     
     const userId = session.session.user.id;
+    
+    if (!id) return;
     
     if (isFavorite) {
       // Remove from wishlist using RPC

@@ -43,7 +43,7 @@ const CustomerWishlist = () => {
       }
       
       // Transform the data to match the WishlistItem type
-      const transformedItems: WishlistItem[] = data.map((item: any) => ({
+      const transformedItems: WishlistItem[] = data ? data.map((item: any) => ({
         wishlist_id: item.wishlist_id,
         id: item.id,
         name: item.name,
@@ -51,7 +51,7 @@ const CustomerWishlist = () => {
         image: item.image,
         category: item.category,
         inStock: item.in_stock
-      }));
+      })) : [];
       
       setWishlistItems(transformedItems);
     } catch (error) {

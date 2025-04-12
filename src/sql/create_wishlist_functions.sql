@@ -1,6 +1,6 @@
 
 -- Function to get wishlist status for a specific product and user
-CREATE OR REPLACE FUNCTION public.get_wishlist_status(p_product_id TEXT, p_user_id UUID)
+CREATE OR REPLACE FUNCTION public.get_wishlist_status(p_product_id UUID, p_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -8,33 +8,33 @@ AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.wishlists 
-    WHERE product_id = p_product_id::UUID AND user_id = p_user_id
+    WHERE product_id = p_product_id AND user_id = p_user_id
   );
 END;
 $$;
 
 -- Function to add a product to wishlist
-CREATE OR REPLACE FUNCTION public.add_to_wishlist(p_product_id TEXT, p_user_id UUID)
+CREATE OR REPLACE FUNCTION public.add_to_wishlist(p_product_id UUID, p_user_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
   INSERT INTO public.wishlists (user_id, product_id)
-  VALUES (p_user_id, p_product_id::UUID)
+  VALUES (p_user_id, p_product_id)
   ON CONFLICT (user_id, product_id) DO NOTHING;
 END;
 $$;
 
 -- Function to remove a product from wishlist
-CREATE OR REPLACE FUNCTION public.remove_from_wishlist(p_product_id TEXT, p_user_id UUID)
+CREATE OR REPLACE FUNCTION public.remove_from_wishlist(p_product_id UUID, p_user_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
   DELETE FROM public.wishlists 
-  WHERE product_id = p_product_id::UUID AND user_id = p_user_id;
+  WHERE product_id = p_product_id AND user_id = p_user_id;
 END;
 $$;
 

@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Product {
-  id: number;
+  id: number | string;
   name: string;
   price: number;
   image: string;
@@ -31,10 +31,9 @@ const ProductCard = ({ product }: ProductCardProps) => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) return;
       
-      // Using raw SQL query instead of `.from('wishlists')` to avoid type errors
       const { data } = await supabase
         .rpc('get_wishlist_status', {
-          p_product_id: String(product.id),
+          p_product_id: product.id,
           p_user_id: session.session.user.id
         });
       
@@ -69,7 +68,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
       // Remove from wishlist using raw SQL via RPC
       const { error } = await supabase
         .rpc('remove_from_wishlist', {
-          p_product_id: String(product.id),
+          p_product_id: product.id,
           p_user_id: userId
         });
       
@@ -93,7 +92,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
       // Add to wishlist using raw SQL via RPC
       const { error } = await supabase
         .rpc('add_to_wishlist', {
-          p_product_id: String(product.id),
+          p_product_id: product.id,
           p_user_id: userId
         });
       
