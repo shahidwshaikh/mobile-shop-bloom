@@ -5,10 +5,10 @@ import { Search as SearchIcon } from "lucide-react";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
 import ProductCard, { Product } from "@/components/products/ProductCard";
 
-// Sample product data (same as in ProductGrid for consistency)
+// Sample product data with proper types (string IDs instead of numbers)
 const sampleProducts: Product[] = [
   {
-    id: 1,
+    id: "1",
     name: "iPhone 13 Pro Max",
     price: 119900,
     image: "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=1000",
@@ -16,7 +16,7 @@ const sampleProducts: Product[] = [
     inStock: true
   },
   {
-    id: 2,
+    id: "2",
     name: "Samsung Galaxy S21",
     price: 69999,
     image: "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&q=80&w=1000",
@@ -24,7 +24,7 @@ const sampleProducts: Product[] = [
     inStock: true
   },
   {
-    id: 3,
+    id: "3",
     name: "OnePlus 9 Pro",
     price: 64999,
     image: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&q=80&w=1000",
@@ -32,7 +32,7 @@ const sampleProducts: Product[] = [
     inStock: false
   },
   {
-    id: 4,
+    id: "4",
     name: "Xiaomi Mi 11",
     price: 49999,
     image: "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&q=80&w=1000",
@@ -40,7 +40,7 @@ const sampleProducts: Product[] = [
     inStock: true
   },
   {
-    id: 5,
+    id: "5",
     name: "Apple AirPods Pro",
     price: 24900,
     image: "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77?auto=format&fit=crop&q=80&w=1000",
@@ -48,7 +48,7 @@ const sampleProducts: Product[] = [
     inStock: true
   },
   {
-    id: 6,
+    id: "6",
     name: "Samsung Galaxy Watch 4",
     price: 26999,
     image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&q=80&w=1000",
