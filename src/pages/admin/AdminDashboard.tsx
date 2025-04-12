@@ -1,11 +1,32 @@
-
+import { useEffect, useState } from "react";
 import { BarChart, TrendingUp, Package, ShoppingBag, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AdminNavbar from "@/components/navigation/AdminNavbar";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
+
+interface Order {
+  id: string;
+  customer: string;
+  total: number;
+  status: string;
+  created_at: string;
+}
+
+interface StatsItem {
+  title: string;
+  value: string;
+  change: string;
+  icon: JSX.Element;
+  trend: "up" | "down";
+}
 
 const AdminDashboard = () => {
-  // Sample data
-  const stats = [
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  
+  const stats: StatsItem[] = [
     {
       title: "Total Sales",
       value: "₹45,231",
@@ -36,11 +57,92 @@ const AdminDashboard = () => {
     }
   ];
   
-  const recentOrders = [
-    { id: "ORD-001", customer: "Raj Sharma", total: "₹12,500", status: "Processing" },
-    { id: "ORD-002", customer: "Priya Patel", total: "₹7,999", status: "Delivered" },
-    { id: "ORD-003", customer: "Amit Kumar", total: "₹24,999", status: "Shipped" }
-  ];
+  useEffect(() => {
+    const fetchRecentOrders = async () => {
+      try {
+        setIsLoading(true);
+        
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        if (ordersError) throw ordersError;
+        
+        if (!ordersData || ordersData.length === 0) {
+          setRecentOrders([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        const ordersWithCustomers = await Promise.all(
+          ordersData.map(async (order) => {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', order.user_id)
+              .single();
+            
+            return {
+              id: order.id,
+              customer: profileData?.full_name || 'Unknown Customer',
+              total: order.total,
+              status: order.status,
+              created_at: order.created_at
+            };
+          })
+        );
+        
+        setRecentOrders(ordersWithCustomers);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        toast({
+          title: "Error fetching orders",
+          description: "There was a problem loading the recent orders.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchRecentOrders();
+    
+    const subscription = supabase
+      .channel('public:orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('Order change received:', payload);
+          fetchRecentOrders();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [toast]);
+  
+  const formatOrderId = (id: string) => {
+    return id ? 'ORD-' + id.slice(-3) : 'Unknown';
+  };
+  
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
 
   return (
     <div className="pb-20">
@@ -50,7 +152,7 @@ const AdminDashboard = () => {
       </div>
       
       <div className="p-4 space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {stats.map((stat, index) => (
             <Card key={index}>
               <CardContent className="p-4 flex flex-col items-center justify-center text-center">
@@ -86,28 +188,52 @@ const AdminDashboard = () => {
             <CardDescription>Latest customer orders</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <div key={order.id} className="flex justify-between items-center p-3 border rounded-md">
-                  <div>
-                    <p className="font-medium">{order.id}</p>
-                    <p className="text-sm text-gray-500">{order.customer}</p>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="flex justify-between items-center p-3 border rounded-md animate-pulse">
+                    <div>
+                      <div className="h-4 w-16 bg-gray-200 rounded"></div>
+                      <div className="h-3 w-24 bg-gray-200 rounded mt-2"></div>
+                    </div>
+                    <div className="text-right">
+                      <div className="h-4 w-16 bg-gray-200 rounded"></div>
+                      <div className="h-3 w-16 bg-gray-200 rounded mt-2"></div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">{order.total}</p>
-                    <p className={`text-xs ${
-                      order.status === "Delivered" 
-                        ? "text-green-500" 
-                        : order.status === "Processing" 
-                          ? "text-orange-500" 
-                          : "text-blue-500"
-                    }`}>
-                      {order.status}
-                    </p>
+                ))}
+              </div>
+            ) : recentOrders.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p>No orders found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="flex justify-between items-center p-3 border rounded-md">
+                    <div>
+                      <p className="font-medium">{formatOrderId(order.id)}</p>
+                      <p className="text-sm text-gray-500">{order.customer}</p>
+                      <p className="text-xs text-gray-400">{formatDate(order.created_at)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">₹{order.total.toLocaleString('en-IN')}</p>
+                      <p className={`text-xs ${
+                        order.status === "Delivered" 
+                          ? "text-green-500" 
+                          : order.status === "Processing" 
+                            ? "text-orange-500" 
+                            : order.status === "Shipped"
+                              ? "text-blue-500"
+                              : "text-red-500"
+                      }`}>
+                        {order.status}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
