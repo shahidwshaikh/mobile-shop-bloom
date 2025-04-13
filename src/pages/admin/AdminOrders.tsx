@@ -94,40 +94,50 @@ const AdminOrders = () => {
     try {
       setLoading(true);
       
-      // Use join to directly get customer data
-      const { data: ordersWithProfiles, error } = await supabase
+      // Fetch orders first
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id,
           user_id,
           status,
           total,
-          created_at,
-          profiles:profiles!inner(full_name)
+          created_at
         `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (ordersError) throw ordersError;
       
-      if (!ordersWithProfiles || ordersWithProfiles.length === 0) {
+      if (!ordersData || ordersData.length === 0) {
         setOrders([]);
         setLoading(false);
         return;
       }
       
-      // Get order items count for each order
+      // Get order items count and customer details for each order
       const ordersWithDetails = await Promise.all(
-        ordersWithProfiles.map(async (order) => {
+        ordersData.map(async (order) => {
           // Get order items count
           const { count } = await supabase
             .from('order_items')
             .select('*', { count: 'exact', head: true })
             .eq('order_id', order.id);
           
+          // Get customer profile
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', order.user_id)
+            .single();
+            
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+          }
+          
           return {
             id: order.id,
             user_id: order.user_id,
-            customer: order.profiles?.full_name || 'Unknown Customer',
+            customer: profileData?.full_name || 'Unknown Customer',
             status: order.status,
             total: order.total,
             created_at: order.created_at,

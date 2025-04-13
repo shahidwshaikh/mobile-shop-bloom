@@ -181,37 +181,47 @@ const AdminDashboard = () => {
       try {
         setIsLoading(true);
         
-        // First fetch all orders with joined profile data
-        const { data: ordersWithProfiles, error } = await supabase
+        // First fetch orders
+        const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select(`
             id,
             user_id,
             status,
             total,
-            created_at,
-            profiles:profiles!inner(full_name)
+            created_at
           `)
           .order('created_at', { ascending: false })
           .limit(5);
         
-        if (error) throw error;
+        if (ordersError) throw ordersError;
         
-        if (!ordersWithProfiles || ordersWithProfiles.length === 0) {
+        if (!ordersData || ordersData.length === 0) {
           setRecentOrders([]);
           setIsLoading(false);
           return;
         }
         
-        // Transform the joined data into the expected format
-        const formattedOrders = ordersWithProfiles.map(order => ({
-          id: order.id,
-          user_id: order.user_id,
-          customer: order.profiles?.full_name || 'Unknown Customer',
-          status: order.status,
-          total: order.total,
-          created_at: order.created_at
-        }));
+        // Then fetch customer profiles for each order
+        const formattedOrders = await Promise.all(
+          ordersData.map(async (order) => {
+            // Get customer profile
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', order.user_id)
+              .single();
+            
+            return {
+              id: order.id,
+              user_id: order.user_id,
+              customer: profileData?.full_name || 'Unknown Customer',
+              status: order.status,
+              total: order.total,
+              created_at: order.created_at
+            };
+          })
+        );
         
         setRecentOrders(formattedOrders);
       } catch (error) {
