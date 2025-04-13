@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, Package, ShoppingBag, Users } from "lucide-react";
 
 export interface StatsItem {
   title: string;
