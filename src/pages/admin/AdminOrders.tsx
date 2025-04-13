@@ -64,8 +64,26 @@ const AdminOrders = () => {
         )
         .subscribe();
       
+      // Set up subscription for profile changes
+      const profilesSubscription = supabase
+        .channel('profile-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles'
+          },
+          (payload) => {
+            console.log('Profile change received:', payload);
+            fetchOrders();
+          }
+        )
+        .subscribe();
+      
       return () => {
         supabase.removeChannel(subscription);
+        supabase.removeChannel(profilesSubscription);
       };
     };
     
@@ -76,30 +94,30 @@ const AdminOrders = () => {
     try {
       setLoading(true);
       
-      // Get all orders
-      const { data: ordersData, error: ordersError } = await supabase
+      // Use join to directly get customer data
+      const { data: ordersWithProfiles, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          id,
+          user_id,
+          status,
+          total,
+          created_at,
+          profiles:profiles!inner(full_name)
+        `)
         .order('created_at', { ascending: false });
       
-      if (ordersError) throw ordersError;
+      if (error) throw error;
       
-      if (!ordersData || ordersData.length === 0) {
+      if (!ordersWithProfiles || ordersWithProfiles.length === 0) {
         setOrders([]);
         setLoading(false);
         return;
       }
       
-      // Get customer names and order items count
+      // Get order items count for each order
       const ordersWithDetails = await Promise.all(
-        ordersData.map(async (order) => {
-          // Get customer details
-          const { data: customerData } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', order.user_id)
-            .single();
-          
+        ordersWithProfiles.map(async (order) => {
           // Get order items count
           const { count } = await supabase
             .from('order_items')
@@ -107,8 +125,12 @@ const AdminOrders = () => {
             .eq('order_id', order.id);
           
           return {
-            ...order,
-            customer: customerData?.full_name || 'Customer',
+            id: order.id,
+            user_id: order.user_id,
+            customer: order.profiles?.full_name || 'Unknown Customer',
+            status: order.status,
+            total: order.total,
+            created_at: order.created_at,
             items: count || 0
           };
         })

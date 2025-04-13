@@ -11,9 +11,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 interface Order {
   id: string;
+  user_id: string;
   customer: string;
-  total: number;
   status: string;
+  total: number;
   created_at: string;
 }
 
@@ -180,39 +181,39 @@ const AdminDashboard = () => {
       try {
         setIsLoading(true);
         
-        const { data: ordersData, error: ordersError } = await supabase
+        // First fetch all orders with joined profile data
+        const { data: ordersWithProfiles, error } = await supabase
           .from('orders')
-          .select('*')
+          .select(`
+            id,
+            user_id,
+            status,
+            total,
+            created_at,
+            profiles:profiles!inner(full_name)
+          `)
           .order('created_at', { ascending: false })
           .limit(5);
         
-        if (ordersError) throw ordersError;
+        if (error) throw error;
         
-        if (!ordersData || ordersData.length === 0) {
+        if (!ordersWithProfiles || ordersWithProfiles.length === 0) {
           setRecentOrders([]);
           setIsLoading(false);
           return;
         }
         
-        const ordersWithCustomers = await Promise.all(
-          ordersData.map(async (order) => {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', order.user_id)
-              .single();
-            
-            return {
-              id: order.id,
-              customer: profileData?.full_name || 'Unknown Customer',
-              total: order.total,
-              status: order.status,
-              created_at: order.created_at
-            };
-          })
-        );
+        // Transform the joined data into the expected format
+        const formattedOrders = ordersWithProfiles.map(order => ({
+          id: order.id,
+          user_id: order.user_id,
+          customer: order.profiles?.full_name || 'Unknown Customer',
+          status: order.status,
+          total: order.total,
+          created_at: order.created_at
+        }));
         
-        setRecentOrders(ordersWithCustomers);
+        setRecentOrders(formattedOrders);
       } catch (error) {
         console.error("Error fetching orders:", error);
         toast({
@@ -229,7 +230,7 @@ const AdminDashboard = () => {
     fetchSalesChartData();
     fetchRecentOrders();
     
-    // Set up real-time subscriptions
+    // Set up real-time subscriptions for orders
     const subscription = supabase
       .channel('public:orders')
       .on(
@@ -248,6 +249,23 @@ const AdminDashboard = () => {
       )
       .subscribe();
     
+    // Set up real-time subscriptions for profiles
+    const profilesSubscription = supabase
+      .channel('public:profiles')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles'
+        },
+        () => {
+          fetchRecentOrders(); // Refresh orders when profiles change
+        }
+      )
+      .subscribe();
+    
+    // Set up additional subscriptions for products
     const productsSubscription = supabase
       .channel('public:products')
       .on(
@@ -263,26 +281,10 @@ const AdminDashboard = () => {
       )
       .subscribe();
     
-    const profilesSubscription = supabase
-      .channel('public:profiles')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles'
-        },
-        () => {
-          fetchStats();
-          fetchRecentOrders();
-        }
-      )
-      .subscribe();
-    
     return () => {
       supabase.removeChannel(subscription);
-      supabase.removeChannel(productsSubscription);
       supabase.removeChannel(profilesSubscription);
+      supabase.removeChannel(productsSubscription);
     };
   }, [toast]);
   
