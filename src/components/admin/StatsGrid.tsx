@@ -1,12 +1,11 @@
 
-import { TrendingUp, Package, ShoppingBag, Users } from "lucide-react";
 import { StatsCard, StatsCardSkeleton } from "./StatsCard";
 
 interface StatsItem {
   title: string;
   value: string;
   change: string;
-  icon: JSX.Element;
+  iconType: "sales" | "products" | "orders" | "customers";
   trend: "up" | "down";
 }
 

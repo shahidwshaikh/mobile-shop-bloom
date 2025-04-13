@@ -8,7 +8,7 @@ export interface StatsItem {
   title: string;
   value: string;
   change: string;
-  icon: JSX.Element;
+  iconType: "sales" | "products" | "orders" | "customers";
   trend: "up" | "down";
 }
 
@@ -61,28 +61,28 @@ export const useAdminStats = () => {
             title: "Total Sales",
             value: `₹${totalSales.toLocaleString('en-IN')}`,
             change: "+12.5%", // In a real app, you would calculate this
-            icon: <TrendingUp className="text-green-500" />,
+            iconType: "sales",
             trend: "up"
           },
           {
             title: "Products",
             value: String(productsCount || 0),
             change: "+2", // In a real app, you would calculate this
-            icon: <Package className="text-blue-500" />,
+            iconType: "products",
             trend: "up"
           },
           {
             title: "New Orders",
             value: String(newOrdersCount || 0),
             change: "+3", // In a real app, you would calculate this
-            icon: <ShoppingBag className="text-purple-500" />,
+            iconType: "orders",
             trend: "up"
           },
           {
             title: "Customers",
             value: String(customersCount || 0),
             change: "+5", // In a real app, you would calculate this
-            icon: <Users className="text-orange-500" />,
+            iconType: "customers",
             trend: "up"
           }
         ]);
