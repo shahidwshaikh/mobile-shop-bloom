@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Trash2, ChevronLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -18,11 +17,26 @@ interface CartItem {
 
 const ShoppingCart = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  const queryParams = new URLSearchParams(location.search);
+  const paymentCanceled = queryParams.get('canceled') === 'true';
+  
+  useEffect(() => {
+    if (paymentCanceled) {
+      toast({
+        title: "Payment canceled",
+        description: "Your payment was canceled. Your cart items are still available.",
+        variant: "destructive",
+      });
+    }
+  }, [paymentCanceled, toast]);
   
   useEffect(() => {
     // Check if user is authenticated
@@ -102,53 +116,21 @@ const ShoppingCart = () => {
       return;
     }
     
-    setIsLoading(true);
+    setIsProcessing(true);
     
     try {
-      // Create order
-      const orderTotal = calculateTotal();
-      
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: userId,
-          total: orderTotal,
-          status: 'Processing'
-        })
-        .select()
-        .single();
-      
-      if (orderError) throw orderError;
-      
-      // Add order items - Fix the type mismatch by mapping each item properly
-      // and ensuring product_id is always a string
-      const orderItems = cartItems.map(item => ({
-        order_id: order.id,
-        product_id: String(item.id), // Convert product_id to string
-        quantity: item.quantity,
-        price: item.price
-      }));
-      
-      // Insert each order item individually to avoid type mismatch with array insert
-      for (const item of orderItems) {
-        const { error: itemError } = await supabase
-          .from('order_items')
-          .insert(item);
-          
-        if (itemError) throw itemError;
-      }
-      
-      // Clear cart
-      setCartItems([]);
-      localStorage.removeItem('cart');
-      
-      toast({
-        title: "Order placed successfully",
-        description: "Your order has been placed and is being processed",
-        duration: 3000,
+      // Call our Stripe checkout function
+      const { data, error } = await supabase.functions.invoke("create-payment", {
+        body: { 
+          items: cartItems,
+          userId: userId
+        }
       });
       
-      navigate("/customer/orders");
+      if (error) throw error;
+      
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast({
@@ -156,8 +138,7 @@ const ShoppingCart = () => {
         description: error.message || "There was an error processing your order",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -267,9 +248,9 @@ const ShoppingCart = () => {
               className="w-full" 
               size="lg"
               onClick={handleCheckout}
-              disabled={isLoading}
+              disabled={isProcessing}
             >
-              {isLoading ? "Processing..." : "Proceed to Checkout"}
+              {isProcessing ? "Processing..." : "Proceed to Payment"}
             </Button>
           </div>
         )}

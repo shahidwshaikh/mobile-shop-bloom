@@ -1,17 +1,15 @@
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Loader2, Package } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ChevronLeft, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OrderItem {
   id: string;
   product_id: string;
+  order_id: string;
   quantity: number;
   price: number;
   product_name: string;
@@ -24,115 +22,138 @@ interface Order {
   status: string;
   total: number;
   items: OrderItem[];
+  stripe_session_id?: string;
 }
 
 const CustomerOrders = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Check for success parameter in URL
+  const queryParams = new URLSearchParams(location.search);
+  const paymentSuccess = queryParams.get('success') === 'true';
   
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/customer/login");
-        return;
-      }
+    if (paymentSuccess) {
+      toast({
+        title: "Order placed successfully",
+        description: "Your payment was successful and your order is being processed.",
+        duration: 5000,
+      });
+      // Remove the success param to prevent showing the toast on refresh
+      navigate('/customer/orders', { replace: true });
       
-      fetchOrders(session.user.id);
+      // Clear the cart after successful payment
+      localStorage.removeItem('cart');
+    }
+  }, [paymentSuccess, toast, navigate]);
+  
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate("/customer/login");
+          return;
+        }
+        
+        // Fetch orders for this user
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+          
+        if (ordersError) throw ordersError;
+        
+        // Check if we need to verify any pending orders
+        const pendingOrders = ordersData.filter(order => 
+          order.status === 'Pending' && order.stripe_session_id
+        );
+        
+        // Verify payment status for pending orders with Stripe session IDs
+        if (pendingOrders.length > 0) {
+          for (const order of pendingOrders) {
+            if (order.stripe_session_id) {
+              try {
+                const { data: verifyData, error: verifyError } = await supabase
+                  .functions.invoke('verify-payment', {
+                    body: { sessionId: order.stripe_session_id }
+                  });
+                
+                if (!verifyError && verifyData.paid) {
+                  // Update local order status if payment was successful
+                  ordersData.forEach(o => {
+                    if (o.id === order.id) {
+                      o.status = 'Processing';
+                    }
+                  });
+                }
+              } catch (error) {
+                console.error("Payment verification error:", error);
+              }
+            }
+          }
+        }
+        
+        // Fetch order items and product details for each order
+        const ordersWithItems = await Promise.all(
+          ordersData.map(async (order) => {
+            const { data: itemsData, error: itemsError } = await supabase
+              .from('order_items')
+              .select(`
+                id, 
+                order_id, 
+                product_id, 
+                quantity, 
+                price, 
+                products (
+                  name, 
+                  image
+                )
+              `)
+              .eq('order_id', order.id);
+              
+            if (itemsError) throw itemsError;
+            
+            // Format order items with product details
+            const items = itemsData.map(item => ({
+              id: item.id,
+              product_id: item.product_id,
+              order_id: item.order_id,
+              quantity: item.quantity,
+              price: item.price,
+              product_name: item.products?.name || 'Product Unavailable',
+              product_image: item.products?.image || '/placeholder.svg'
+            }));
+            
+            return { ...order, items };
+          })
+        );
+        
+        setOrders(ordersWithItems);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        toast({
+          title: "Error loading orders",
+          description: "There was a problem fetching your orders. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
     
-    checkAuth();
-  }, [navigate]);
-  
-  const fetchOrders = async (userId: string) => {
-    try {
-      setLoading(true);
-      
-      // Fetch orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      
-      if (ordersError) throw ordersError;
-      
-      if (!ordersData || ordersData.length === 0) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Fetch order items and product details for each order
-      const ordersWithItems = await Promise.all(
-        ordersData.map(async (order) => {
-          const { data: itemsData, error: itemsError } = await supabase
-            .from('order_items')
-            .select(`
-              id,
-              product_id,
-              quantity,
-              price,
-              products (
-                name,
-                image
-              )
-            `)
-            .eq('order_id', order.id);
-          
-          if (itemsError) throw itemsError;
-          
-          const items = itemsData.map((item) => ({
-            id: item.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            price: item.price,
-            product_name: item.products?.name || 'Product',
-            product_image: item.products?.image || ''
-          }));
-          
-          return {
-            ...order,
-            items
-          };
-        })
-      );
-      
-      setOrders(ordersWithItems);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'delivered':
-        return "bg-green-500";
-      case 'processing':
-        return "bg-blue-500";
-      case 'shipped':
-        return "bg-yellow-500";
-      case 'cancelled':
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-  
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+    fetchOrders();
+  }, [navigate, toast]);
   
   const goBack = () => {
-    navigate(-1);
+    navigate("/customer/home");
   };
 
   return (
@@ -142,7 +163,7 @@ const CustomerOrders = () => {
           variant="ghost" 
           size="icon" 
           className="mr-auto" 
-          onClick={goBack}
+          onClick={() => navigate("/customer/home")}
         >
           <ChevronLeft size={24} />
         </Button>
@@ -151,67 +172,86 @@ const CustomerOrders = () => {
       </div>
       
       <div className="pt-16 p-4">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
+        {isLoading ? (
+          <div className="flex justify-center items-center min-h-[60vh]">
+            <Loader2 className="h-8 w-8 animate-spin text-shop-purple" />
           </div>
         ) : orders.length === 0 ? (
           <div className="text-center py-16">
-            <Package className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h2 className="text-xl font-medium mb-2">No orders yet</h2>
             <p className="text-gray-500 mb-6">Start shopping to place your first order</p>
             <Button onClick={() => navigate("/customer/home")}>
-              Shop Now
+              Browse Products
             </Button>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            {paymentSuccess && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center">
+                <CheckCircle className="text-green-500 mr-2" size={18} />
+                <p className="text-sm text-green-700">
+                  <span className="font-medium">Payment successful!</span> Your order is being processed.
+                </p>
+              </div>
+            )}
+            
             {orders.map((order) => (
-              <Card key={order.id} className="overflow-hidden">
-                <div className="bg-gray-50 p-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm text-gray-500">Order #{order.id.slice(-6)}</p>
-                    <p className="text-xs text-gray-400">{formatDate(order.created_at)}</p>
+              <div key={order.id} className="bg-white rounded-lg border overflow-hidden">
+                <div className="p-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">
+                        Order #{order.id.substring(0, 8)}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                        order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'Shipped' ? 'bg-purple-100 text-purple-800' :
+                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </div>
                   </div>
-                  <Badge className={getStatusColor(order.status)}>
-                    {order.status}
-                  </Badge>
                 </div>
                 
-                <CardContent className="p-4">
-                  <div className="space-y-3">
-                    {order.items.slice(0, 3).map((item) => (
-                      <div key={item.id} className="flex gap-3">
+                <div className="p-4">
+                  {order.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 py-2">
+                      <div className="w-12 h-12 rounded bg-gray-100 overflow-hidden">
                         <img 
                           src={item.product_image} 
                           alt={item.product_name}
-                          className="w-14 h-14 object-cover rounded"
+                          className="w-full h-full object-cover"
                         />
-                        <div className="flex-1">
-                          <h3 className="text-sm font-medium line-clamp-1">{item.product_name}</h3>
-                          <div className="flex justify-between items-center mt-1">
-                            <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
-                            <p className="text-shop-purple font-medium">₹{item.price.toLocaleString()}</p>
-                          </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium line-clamp-1">
+                          {item.product_name}
+                        </h3>
+                        <div className="flex text-xs text-gray-500">
+                          <span>Qty: {item.quantity}</span>
+                          <span className="mx-2">•</span>
+                          <span>₹{item.price.toLocaleString()}</span>
                         </div>
                       </div>
-                    ))}
-                    
-                    {order.items.length > 3 && (
-                      <p className="text-xs text-gray-500 text-center">
-                        +{order.items.length - 3} more items
-                      </p>
-                    )}
-                  </div>
+                    </div>
+                  ))}
                   
-                  <Separator className="my-3" />
-                  
-                  <div className="flex justify-between font-medium">
-                    <span>Total Amount</span>
-                    <span className="text-shop-purple">₹{order.total.toLocaleString()}</span>
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="flex justify-between font-medium">
+                      <span>Total</span>
+                      <span className="text-shop-purple">₹{order.total.toLocaleString()}</span>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         )}
