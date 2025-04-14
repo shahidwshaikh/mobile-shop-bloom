@@ -1,11 +1,25 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Trash2, ChevronLeft, AlertCircle } from "lucide-react";
+import { Trash2, ChevronLeft, AlertCircle, MapPin, Phone, User, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
 import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { 
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 interface CartItem {
   id: string | number;
@@ -14,6 +28,20 @@ interface CartItem {
   image: string;
   quantity: number;
 }
+
+interface CustomerInfo {
+  name: string;
+  phone: string;
+  address: string;
+  pincode: string;
+}
+
+const formSchema = z.object({
+  name: z.string().min(3, { message: "Name must be at least 3 characters" }),
+  phone: z.string().min(10, { message: "Enter a valid phone number" }),
+  address: z.string().min(5, { message: "Address must be at least 5 characters" }),
+  pincode: z.string().min(6, { message: "Enter a valid 6-digit pincode" }),
+});
 
 const ShoppingCart = () => {
   const navigate = useNavigate();
@@ -24,6 +52,17 @@ const ShoppingCart = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      phone: "",
+      address: "",
+      pincode: "",
+    },
+  });
   
   const queryParams = new URLSearchParams(location.search);
   const paymentCanceled = queryParams.get('canceled') === 'true';
@@ -48,6 +87,18 @@ const ShoppingCart = () => {
       } else {
         setIsAuthenticated(true);
         setUserId(session.user.id);
+        
+        // Fetch user profile data if authenticated
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (profileData) {
+          form.setValue('name', profileData.full_name || '');
+          form.setValue('phone', profileData.phone || '');
+        }
       }
     };
     
@@ -58,7 +109,7 @@ const ShoppingCart = () => {
     if (savedCart) {
       setCartItems(JSON.parse(savedCart));
     }
-  }, [navigate]);
+  }, [navigate, form]);
   
   useEffect(() => {
     // Save cart items to localStorage when they change
@@ -96,7 +147,7 @@ const ShoppingCart = () => {
     return subtotal + deliveryFee;
   };
   
-  const handleCheckout = async () => {
+  const proceedToCustomerInfo = () => {
     if (!isAuthenticated) {
       toast({
         title: "Login Required",
@@ -116,14 +167,37 @@ const ShoppingCart = () => {
       return;
     }
     
+    setShowCustomerForm(true);
+  };
+  
+  const handleSubmitOrder = async (values: z.infer<typeof formSchema>) => {
     setIsProcessing(true);
     
     try {
-      // Call our direct order creation function
+      // Update user profile with the latest information
+      if (userId) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: values.name,
+            phone: values.phone
+          })
+          .eq('id', userId);
+          
+        if (profileError) throw profileError;
+      }
+      
+      // Create order with customer info
       const { data, error } = await supabase.functions.invoke("create-payment", {
         body: { 
           items: cartItems,
-          userId: userId
+          userId: userId,
+          customerInfo: {
+            name: values.name,
+            phone: values.phone,
+            address: values.address,
+            pincode: values.pincode
+          }
         }
       });
       
@@ -188,6 +262,119 @@ const ShoppingCart = () => {
             <Button onClick={() => navigate("/customer/home")}>
               Continue Shopping
             </Button>
+          </div>
+        ) : showCustomerForm ? (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg p-4 border">
+              <h2 className="text-lg font-medium mb-4">Shipping Information</h2>
+              
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmitOrder)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <div className="flex items-center border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                            <User className="ml-2 h-5 w-5 text-gray-400" />
+                            <Input placeholder="Enter your full name" className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <div className="flex items-center border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                            <Phone className="ml-2 h-5 w-5 text-gray-400" />
+                            <Input placeholder="Enter your phone number" className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <div className="flex items-start border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                            <Home className="ml-2 mt-2 h-5 w-5 flex-shrink-0 text-gray-400" />
+                            <Textarea placeholder="Enter your full address" className="min-h-20 border-0 focus-visible:ring-0 focus-visible:ring-offset-0" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="pincode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pincode</FormLabel>
+                        <FormControl>
+                          <div className="flex items-center border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                            <MapPin className="ml-2 h-5 w-5 text-gray-400" />
+                            <Input placeholder="Enter 6-digit pincode" className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="pt-4">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-500">Subtotal</span>
+                      <span>₹{calculateSubtotal().toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-500">Delivery Fee</span>
+                      <span>₹99</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between font-bold">
+                      <span>Total</span>
+                      <span className="text-shop-purple">₹{calculateTotal().toLocaleString()}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="flex-1" 
+                      onClick={() => setShowCustomerForm(false)}
+                      disabled={isProcessing}
+                    >
+                      Back
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      className="flex-1" 
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? "Processing..." : "Place Order"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -261,10 +448,10 @@ const ShoppingCart = () => {
             <Button 
               className="w-full" 
               size="lg"
-              onClick={handleCheckout}
+              onClick={proceedToCustomerInfo}
               disabled={isProcessing}
             >
-              {isProcessing ? "Processing..." : "Place Order"}
+              Proceed to Checkout
             </Button>
           </div>
         )}

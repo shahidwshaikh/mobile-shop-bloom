@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ChevronLeft, Loader2, CheckCircle } from "lucide-react";
+import { ChevronLeft, Loader2, CheckCircle, MapPin, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import CustomerNavbar from "@/components/navigation/CustomerNavbar";
@@ -21,6 +22,8 @@ interface Order {
   created_at: string;
   status: string;
   total: number;
+  address?: string;
+  pincode?: string;
   items: OrderItem[];
 }
 
@@ -192,6 +195,24 @@ const CustomerOrders = () => {
                     </div>
                   </div>
                 </div>
+                
+                {(order.address || order.pincode) && (
+                  <div className="p-4 bg-gray-50 border-b">
+                    <p className="text-sm font-medium mb-1">Delivery Address</p>
+                    {order.address && (
+                      <div className="flex gap-1 items-start text-sm text-gray-600">
+                        <Home className="h-3.5 w-3.5 mt-0.5 text-gray-400 flex-shrink-0" />
+                        <p>{order.address}</p>
+                      </div>
+                    )}
+                    {order.pincode && (
+                      <div className="flex gap-1 items-center text-sm text-gray-600 mt-1">
+                        <MapPin className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        <p>Pincode: {order.pincode}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="p-4">
                   {order.items.map((item) => (

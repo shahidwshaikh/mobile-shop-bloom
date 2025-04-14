@@ -1,91 +1,122 @@
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.5";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+interface CartItem {
+  id: string | number;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+}
+
+interface CustomerInfo {
+  name: string;
+  phone: string;
+  address: string;
+  pincode: string;
+}
+
+interface RequestBody {
+  items: CartItem[];
+  userId: string;
+  customerInfo: CustomerInfo;
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
-    const { items, userId } = await req.json();
+    // Get request body
+    const { items, userId, customerInfo } = await req.json() as RequestBody;
     
-    if (!items || !items.length) {
+    if (!items || items.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No items provided" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "No items provided" }),
+        { headers: { "Content-Type": "application/json" }, status: 400 }
       );
     }
-
-    // Create a Supabase client for service role operations
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
-    // Calculate order total
-    const orderTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    // Create the order
-    const { data: order, error: orderError } = await supabaseAdmin
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID is required" }),
+        { headers: { "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    // Create a Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Calculate total order amount
+    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 99; // Adding delivery fee
+    
+    // Update profile with customer information
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        full_name: customerInfo.name,
+        phone: customerInfo.phone
+      })
+      .eq('id', userId);
+      
+    if (profileError) {
+      console.error("Error updating profile:", profileError);
+    }
+    
+    // Create order
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         user_id: userId,
-        total: orderTotal,
-        status: 'Processing'
+        total: total,
+        status: 'Processing',
+        address: customerInfo.address,
+        pincode: customerInfo.pincode
       })
       .select()
       .single();
-    
+      
     if (orderError) {
       console.error("Error creating order:", orderError);
       return new Response(
-        JSON.stringify({ error: orderError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "Failed to create order" }),
+        { headers: { "Content-Type": "application/json" }, status: 500 }
       );
     }
-
-    // Add order items
+    
+    // Create order items
     const orderItems = items.map(item => ({
       order_id: order.id,
-      product_id: String(item.id),
+      product_id: item.id,
       quantity: item.quantity,
       price: item.price
     }));
     
-    // Insert all order items
-    let hasOrderItemError = false;
-    for (const item of orderItems) {
-      const { error } = await supabaseAdmin
-        .from('order_items')
-        .insert(item);
-        
-      if (error) {
-        console.error("Error adding order item:", error);
-        hasOrderItemError = true;
-      }
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems);
+      
+    if (itemsError) {
+      console.error("Error creating order items:", itemsError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Failed to create order items" }),
+        { headers: { "Content-Type": "application/json" }, status: 500 }
+      );
     }
-
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
-        orderId: order.id,
-        hasErrors: hasOrderItemError 
+        order: { id: order.id }
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } }
     );
+    
   } catch (error) {
-    console.error("Order creation error:", error);
+    console.error("Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ success: false, error: "Server error" }),
+      { headers: { "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
