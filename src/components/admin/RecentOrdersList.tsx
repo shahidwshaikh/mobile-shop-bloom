@@ -62,7 +62,7 @@ export const RecentOrdersList = ({ orders, isLoading }: RecentOrdersListProps) =
               <div key={order.id} className="flex justify-between items-center p-3 border rounded-md">
                 <div>
                   <p className="font-medium">{formatOrderId(order.id)}</p>
-                  <p className="text-sm text-gray-500">{order.customer}</p>
+                  <p className="text-sm text-gray-500">{order.customer || "No customer name"}</p>
                   <p className="text-xs text-gray-400">{formatDate(order.created_at)}</p>
                 </div>
                 <div className="text-right">

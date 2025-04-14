@@ -53,10 +53,14 @@ export const useRecentOrders = () => {
               .eq('id', order.user_id)
               .single();
             
+            if (profileError) {
+              console.error("Error fetching profile:", profileError);
+            }
+            
             return {
               id: order.id,
               user_id: order.user_id,
-              customer: profileData?.full_name || 'Unknown Customer',
+              customer: profileData?.full_name || "No customer name",
               status: order.status,
               total: order.total,
               created_at: order.created_at
