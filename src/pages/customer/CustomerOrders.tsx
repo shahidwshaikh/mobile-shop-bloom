@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ChevronLeft, Loader2, CheckCircle } from "lucide-react";
@@ -132,7 +133,10 @@ const CustomerOrders = () => {
               product_image: item.products?.image || '/placeholder.svg'
             }));
             
-            return { ...order, items };
+            return { 
+              ...order, 
+              items 
+            };
           })
         );
         

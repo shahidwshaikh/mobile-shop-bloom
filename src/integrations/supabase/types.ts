@@ -56,6 +56,7 @@ export type Database = {
           created_at: string
           id: string
           status: string
+          stripe_session_id: string | null
           total: number
           updated_at: string
           user_id: string
@@ -64,6 +65,7 @@ export type Database = {
           created_at?: string
           id?: string
           status?: string
+          stripe_session_id?: string | null
           total: number
           updated_at?: string
           user_id: string
@@ -72,6 +74,7 @@ export type Database = {
           created_at?: string
           id?: string
           status?: string
+          stripe_session_id?: string | null
           total?: number
           updated_at?: string
           user_id?: string
