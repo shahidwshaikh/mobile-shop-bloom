@@ -31,8 +31,8 @@ const ShoppingCart = () => {
   useEffect(() => {
     if (paymentCanceled) {
       toast({
-        title: "Payment canceled",
-        description: "Your payment was canceled. Your cart items are still available.",
+        title: "Order canceled",
+        description: "Your order was canceled. Your cart items are still available.",
         variant: "destructive",
       });
     }
@@ -119,7 +119,7 @@ const ShoppingCart = () => {
     setIsProcessing(true);
     
     try {
-      // Call our Stripe checkout function
+      // Call our direct order creation function
       const { data, error } = await supabase.functions.invoke("create-payment", {
         body: { 
           items: cartItems,
@@ -129,8 +129,22 @@ const ShoppingCart = () => {
       
       if (error) throw error;
       
-      // Redirect to Stripe Checkout
-      window.location.href = data.url;
+      if (data.success) {
+        // Clear cart
+        localStorage.removeItem('cart');
+        
+        // Show success message and redirect to orders page
+        toast({
+          title: "Order placed successfully",
+          description: "Your order has been placed and is being processed.",
+          duration: 5000,
+        });
+        
+        // Redirect to orders page with success parameter
+        navigate("/customer/orders?success=true");
+      } else {
+        throw new Error("Failed to create order");
+      }
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast({
@@ -250,7 +264,7 @@ const ShoppingCart = () => {
               onClick={handleCheckout}
               disabled={isProcessing}
             >
-              {isProcessing ? "Processing..." : "Proceed to Payment"}
+              {isProcessing ? "Processing..." : "Place Order"}
             </Button>
           </div>
         )}

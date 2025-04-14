@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ChevronLeft, Loader2, CheckCircle } from "lucide-react";
@@ -23,7 +22,6 @@ interface Order {
   status: string;
   total: number;
   items: OrderItem[];
-  stripe_session_id?: string;
 }
 
 const CustomerOrders = () => {
@@ -35,22 +33,22 @@ const CustomerOrders = () => {
   
   // Check for success parameter in URL
   const queryParams = new URLSearchParams(location.search);
-  const paymentSuccess = queryParams.get('success') === 'true';
+  const orderSuccess = queryParams.get('success') === 'true';
   
   useEffect(() => {
-    if (paymentSuccess) {
+    if (orderSuccess) {
       toast({
         title: "Order placed successfully",
-        description: "Your payment was successful and your order is being processed.",
+        description: "Your order is being processed.",
         duration: 5000,
       });
       // Remove the success param to prevent showing the toast on refresh
       navigate('/customer/orders', { replace: true });
       
-      // Clear the cart after successful payment
+      // Clear the cart after successful order
       localStorage.removeItem('cart');
     }
-  }, [paymentSuccess, toast, navigate]);
+  }, [orderSuccess, toast, navigate]);
   
   useEffect(() => {
     const fetchOrders = async () => {
@@ -71,36 +69,6 @@ const CustomerOrders = () => {
           .order('created_at', { ascending: false });
           
         if (ordersError) throw ordersError;
-        
-        // Check if we need to verify any pending orders
-        const pendingOrders = ordersData.filter(order => 
-          order.status === 'Pending' && order.stripe_session_id
-        );
-        
-        // Verify payment status for pending orders with Stripe session IDs
-        if (pendingOrders.length > 0) {
-          for (const order of pendingOrders) {
-            if (order.stripe_session_id) {
-              try {
-                const { data: verifyData, error: verifyError } = await supabase
-                  .functions.invoke('verify-payment', {
-                    body: { sessionId: order.stripe_session_id }
-                  });
-                
-                if (!verifyError && verifyData.paid) {
-                  // Update local order status if payment was successful
-                  ordersData.forEach(o => {
-                    if (o.id === order.id) {
-                      o.status = 'Processing';
-                    }
-                  });
-                }
-              } catch (error) {
-                console.error("Payment verification error:", error);
-              }
-            }
-          }
-        }
         
         // Fetch order items and product details for each order
         const ordersWithItems = await Promise.all(
@@ -190,11 +158,11 @@ const CustomerOrders = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {paymentSuccess && (
+            {orderSuccess && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center">
                 <CheckCircle className="text-green-500 mr-2" size={18} />
                 <p className="text-sm text-green-700">
-                  <span className="font-medium">Payment successful!</span> Your order is being processed.
+                  <span className="font-medium">Order successful!</span> Your order is being processed.
                 </p>
               </div>
             )}

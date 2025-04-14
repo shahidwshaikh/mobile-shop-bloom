@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -15,19 +14,14 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId } = await req.json();
+    const { orderId } = await req.json();
     
-    if (!sessionId) {
+    if (!orderId) {
       return new Response(
-        JSON.stringify({ error: "No session ID provided" }),
+        JSON.stringify({ error: "No order ID provided" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Initialize Stripe with the secret key
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2023-10-16",
-    });
 
     // Create a Supabase client for service role operations
     const supabaseAdmin = createClient(
@@ -36,25 +30,24 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Retrieve the checkout session to check payment status
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    // Retrieve the order to check status
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
     
-    // If payment is successful, update the order status
-    if (session.payment_status === "paid") {
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .update({ status: 'Processing' })
-        .eq('stripe_session_id', sessionId);
-      
-      if (error) {
-        console.error("Error updating order status:", error);
-      }
+    if (orderError) {
+      return new Response(
+        JSON.stringify({ error: orderError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
-
+    
     return new Response(
       JSON.stringify({ 
-        paid: session.payment_status === "paid",
-        status: session.status
+        status: order.status,
+        processed: order.status !== 'Pending'
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
