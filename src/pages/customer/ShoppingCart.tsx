@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Trash2, ChevronLeft, AlertCircle, MapPin, Phone, User, Home } from "lucide-react";
@@ -78,17 +77,14 @@ const ShoppingCart = () => {
   }, [paymentCanceled, toast]);
   
   useEffect(() => {
-    // Check if user is authenticated
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setIsAuthenticated(false);
-        // Instead of redirecting, allow the user to see the cart but require login for checkout
       } else {
         setIsAuthenticated(true);
         setUserId(session.user.id);
         
-        // Fetch user profile data if authenticated
         const { data: profileData } = await supabase
           .from('profiles')
           .select('full_name, phone')
@@ -104,7 +100,6 @@ const ShoppingCart = () => {
     
     checkAuth();
     
-    // Load cart items from localStorage
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCartItems(JSON.parse(savedCart));
@@ -112,7 +107,6 @@ const ShoppingCart = () => {
   }, [navigate, form]);
   
   useEffect(() => {
-    // Save cart items to localStorage when they change
     localStorage.setItem('cart', JSON.stringify(cartItems));
   }, [cartItems]);
   
@@ -174,22 +168,13 @@ const ShoppingCart = () => {
     setIsProcessing(true);
     
     try {
-      // Update user profile with the latest information
-      if (userId) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: values.name,
-            phone: values.phone
-          })
-          .eq('id', userId);
-          
-        if (profileError) throw profileError;
+      if (!userId) {
+        throw new Error("User not authenticated");
       }
       
-      // Create order with customer info
       const { data, error } = await supabase.functions.invoke("create-payment", {
-        body: { 
+        method: "POST",
+        body: JSON.stringify({ 
           items: cartItems,
           userId: userId,
           customerInfo: {
@@ -198,27 +183,32 @@ const ShoppingCart = () => {
             address: values.address,
             pincode: values.pincode
           }
+        }),
+        headers: {
+          "Content-Type": "application/json"
         }
       });
       
-      if (error) throw error;
-      
-      if (data.success) {
-        // Clear cart
-        localStorage.removeItem('cart');
-        
-        // Show success message and redirect to orders page
-        toast({
-          title: "Order placed successfully",
-          description: "Your order has been placed and is being processed.",
-          duration: 5000,
-        });
-        
-        // Redirect to orders page with success parameter
-        navigate("/customer/orders?success=true");
-      } else {
-        throw new Error("Failed to create order");
+      if (error) {
+        console.error("Checkout error:", error);
+        throw error;
       }
+      
+      if (!data || !data.success) {
+        throw new Error(data?.error || "Failed to create order");
+      }
+      
+      localStorage.removeItem('cart');
+      setCartItems([]);
+      
+      toast({
+        title: "Order placed successfully",
+        description: "Your order has been placed and is being processed.",
+        duration: 5000,
+      });
+      
+      navigate("/customer/orders?success=true");
+      
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast({
@@ -226,6 +216,7 @@ const ShoppingCart = () => {
         description: error.message || "There was an error processing your order",
         variant: "destructive",
       });
+    } finally {
       setIsProcessing(false);
     }
   };

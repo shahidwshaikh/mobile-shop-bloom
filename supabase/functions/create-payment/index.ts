@@ -23,22 +23,53 @@ interface RequestBody {
   customerInfo: CustomerInfo;
 }
 
+// Add CORS headers for browser requests
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
     // Get request body
-    const { items, userId, customerInfo } = await req.json() as RequestBody;
+    const body = await req.text();
+    
+    if (!body || body.trim() === "") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Request body is empty" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    let data: RequestBody;
+    try {
+      data = JSON.parse(body);
+    } catch (e) {
+      console.error("JSON parsing error:", e, "Raw body:", body);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON in request" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    const { items, userId, customerInfo } = data;
     
     if (!items || items.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: "No items provided" }),
-        { headers: { "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
     
     if (!userId) {
       return new Response(
         JSON.stringify({ success: false, error: "User ID is required" }),
-        { headers: { "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
     
@@ -80,7 +111,7 @@ serve(async (req) => {
       console.error("Error creating order:", orderError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to create order" }),
-        { headers: { "Content-Type": "application/json" }, status: 500 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
     
@@ -100,7 +131,7 @@ serve(async (req) => {
       console.error("Error creating order items:", itemsError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to create order items" }),
-        { headers: { "Content-Type": "application/json" }, status: 500 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
     
@@ -109,14 +140,14 @@ serve(async (req) => {
         success: true, 
         order: { id: order.id }
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
     
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
       JSON.stringify({ success: false, error: "Server error" }),
-      { headers: { "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

@@ -53,8 +53,10 @@ export type Database = {
       }
       orders: {
         Row: {
+          address: string | null
           created_at: string
           id: string
+          pincode: string | null
           status: string
           stripe_session_id: string | null
           total: number
@@ -62,8 +64,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          address?: string | null
           created_at?: string
           id?: string
+          pincode?: string | null
           status?: string
           stripe_session_id?: string | null
           total: number
@@ -71,8 +75,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          address?: string | null
           created_at?: string
           id?: string
+          pincode?: string | null
           status?: string
           stripe_session_id?: string | null
           total?: number
