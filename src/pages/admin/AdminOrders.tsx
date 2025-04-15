@@ -67,6 +67,7 @@ const AdminOrders = () => {
                 total={order.total}
                 created_at={order.created_at}
                 items={order.items}
+                phone={order.phone}
                 onUpdateStatus={updateOrderStatus}
               />
             ))

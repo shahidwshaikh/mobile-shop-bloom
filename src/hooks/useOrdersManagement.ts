@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +11,7 @@ export interface Order {
   address: string;
   pincode: string;
   items: number;
+  phone?: string;
 }
 
 export const useOrdersManagement = () => {
@@ -120,7 +120,7 @@ export const useOrdersManagement = () => {
           // Get customer profile
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name, phone')
             .eq('id', order.user_id)
             .single();
             
@@ -132,6 +132,7 @@ export const useOrdersManagement = () => {
             id: order.id,
             user_id: order.user_id,
             customer: profileData?.full_name || 'Unknown Customer',
+            phone: profileData?.phone || undefined,
             status: order.status,
             total: order.total,
             created_at: order.created_at,
@@ -182,6 +183,7 @@ export const useOrdersManagement = () => {
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.phone && order.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (order.address && order.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (order.pincode && order.pincode.toLowerCase().includes(searchQuery.toLowerCase()));
     

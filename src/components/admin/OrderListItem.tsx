@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Phone, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ interface OrderListItemProps {
   total: number;
   created_at: string;
   items: number;
+  phone?: string;
   onUpdateStatus: (orderId: string, newStatus: string) => void;
 }
 
@@ -30,6 +31,7 @@ export const OrderListItem = ({
   total,
   created_at,
   items,
+  phone,
   onUpdateStatus
 }: OrderListItemProps) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -68,8 +70,17 @@ export const OrderListItem = ({
                 <h3 className="font-medium">#{id.slice(-6)}</h3>
                 <Badge className={getStatusColor(status)}>{status}</Badge>
               </div>
-              <p className="text-sm text-gray-600 mt-1">{customer}</p>
-              <p className="text-xs text-gray-500">{formatDate(created_at)}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <User size={14} className="text-gray-500" />
+                <p className="text-sm text-gray-600">{customer}</p>
+              </div>
+              {phone && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Phone size={14} className="text-gray-500" />
+                  <p className="text-xs text-gray-500">{phone}</p>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-1">{formatDate(created_at)}</p>
             </div>
             <div className="text-right">
               <p className="font-bold text-shop-purple">₹{total.toLocaleString()}</p>
