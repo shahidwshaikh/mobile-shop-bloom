@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -117,27 +118,23 @@ export const useOrdersManagement = () => {
             .select('*', { count: 'exact', head: true })
             .eq('order_id', order.id);
           
-          // Get customer profile
-          const { data: profileData, error: profileError } = await supabase
+          // Get customer profile - using maybeSingle instead of single to avoid errors
+          const { data: profileData } = await supabase
             .from('profiles')
             .select('full_name, phone')
             .eq('id', order.user_id)
-            .single();
+            .maybeSingle();
             
-          if (profileError) {
-            console.error("Error fetching profile:", profileError);
-          }
-          
           return {
             id: order.id,
             user_id: order.user_id,
             customer: profileData?.full_name || 'Unknown Customer',
-            phone: profileData?.phone || undefined,
+            phone: profileData?.phone || 'No phone provided',
             status: order.status,
             total: order.total,
             created_at: order.created_at,
-            address: order.address || '',
-            pincode: order.pincode || '',
+            address: order.address || 'No address provided',
+            pincode: order.pincode || 'No pincode provided',
             items: count || 0
           };
         })

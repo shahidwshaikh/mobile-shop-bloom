@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface OrderDetailsProps {
   orderId: string;
@@ -63,16 +64,12 @@ export const OrderDetails = ({ orderId, open, onOpenChange }: OrderDetailsProps)
       
       if (orderError) throw orderError;
       
-      // Fetch customer profile
-      const { data: profileData, error: profileError } = await supabase
+      // Fetch customer profile - using maybeSingle instead of single to avoid errors
+      const { data: profileData } = await supabase
         .from('profiles')
         .select('full_name, phone')
         .eq('id', orderData.user_id)
-        .single();
-        
-      if (profileError) {
-        console.error("Error fetching profile:", profileError);
-      }
+        .maybeSingle();
       
       // Fetch order items
       const { data: orderItems, error: itemsError } = await supabase
@@ -163,15 +160,18 @@ export const OrderDetails = ({ orderId, open, onOpenChange }: OrderDetailsProps)
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Order Details #{orderId.slice(-6)}</DialogTitle>
+          <DialogDescription>
+            View complete order information and item details
+          </DialogDescription>
         </DialogHeader>
         
         {isLoading ? (
           <div className="flex justify-center py-8">
-            <p>Loading order details...</p>
+            <Loader2 className="h-8 w-8 text-shop-purple animate-spin" />
           </div>
         ) : orderDetails ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <h3 className="font-semibold text-sm text-gray-500">Customer Information</h3>
                 <p className="font-medium">{orderDetails.customer}</p>
