@@ -37,9 +37,12 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const body = await req.text();
+    const reqText = await req.text();
     
-    if (!body || body.trim() === "") {
+    // Debug the received raw body
+    console.log("Raw request body:", reqText);
+    
+    if (!reqText || reqText.trim() === "") {
       return new Response(
         JSON.stringify({ success: false, error: "Request body is empty" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
@@ -48,14 +51,17 @@ serve(async (req) => {
     
     let data: RequestBody;
     try {
-      data = JSON.parse(body);
+      data = JSON.parse(reqText);
     } catch (e) {
-      console.error("JSON parsing error:", e, "Raw body:", body);
+      console.error("JSON parsing error:", e, "Raw body:", reqText);
       return new Response(
         JSON.stringify({ success: false, error: "Invalid JSON in request" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+    
+    // Debug the parsed data
+    console.log("Parsed data:", JSON.stringify(data));
     
     const { items, userId, customerInfo } = data;
     
@@ -69,6 +75,13 @@ serve(async (req) => {
     if (!userId) {
       return new Response(
         JSON.stringify({ success: false, error: "User ID is required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    if (!customerInfo) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Customer information is required" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }

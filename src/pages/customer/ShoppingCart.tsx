@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Trash2, ChevronLeft, AlertCircle, MapPin, Phone, User, Home } from "lucide-react";
@@ -165,39 +166,47 @@ const ShoppingCart = () => {
   };
   
   const handleSubmitOrder = async (values: z.infer<typeof formSchema>) => {
+    if (!userId || cartItems.length === 0) {
+      toast({
+        title: "Unable to process order",
+        description: "Please ensure you are logged in and have items in your cart",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsProcessing(true);
     
     try {
-      if (!userId) {
-        throw new Error("User not authenticated");
-      }
+      const customerInfo: CustomerInfo = {
+        name: values.name,
+        phone: values.phone,
+        address: values.address,
+        pincode: values.pincode
+      };
+      
+      const payload = { 
+        items: cartItems,
+        userId: userId,
+        customerInfo: customerInfo
+      };
+      
+      console.log("Sending order payload:", JSON.stringify(payload));
       
       const { data, error } = await supabase.functions.invoke("create-payment", {
-        method: "POST",
-        body: JSON.stringify({ 
-          items: cartItems,
-          userId: userId,
-          customerInfo: {
-            name: values.name,
-            phone: values.phone,
-            address: values.address,
-            pincode: values.pincode
-          }
-        }),
-        headers: {
-          "Content-Type": "application/json"
-        }
+        body: JSON.stringify(payload)
       });
       
       if (error) {
         console.error("Checkout error:", error);
-        throw error;
+        throw new Error(error.message || "Failed to process order");
       }
       
       if (!data || !data.success) {
         throw new Error(data?.error || "Failed to create order");
       }
       
+      // Clear cart and show success message
       localStorage.removeItem('cart');
       setCartItems([]);
       
