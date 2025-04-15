@@ -9,6 +9,8 @@ export interface Order {
   status: string;
   total: number;
   created_at: string;
+  address: string;
+  pincode: string;
   items: number;
 }
 
@@ -92,7 +94,9 @@ export const useOrdersManagement = () => {
           user_id,
           status,
           total,
-          created_at
+          created_at,
+          address,
+          pincode
         `)
         .order('created_at', { ascending: false });
       
@@ -131,6 +135,8 @@ export const useOrdersManagement = () => {
             status: order.status,
             total: order.total,
             created_at: order.created_at,
+            address: order.address || '',
+            pincode: order.pincode || '',
             items: count || 0
           };
         })
@@ -175,7 +181,9 @@ export const useOrdersManagement = () => {
     const matchesSearch = 
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.status.toLowerCase().includes(searchQuery.toLowerCase());
+      order.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.address && order.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (order.pincode && order.pincode.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesStatus = statusFilter === "All" || order.status === statusFilter;
     
