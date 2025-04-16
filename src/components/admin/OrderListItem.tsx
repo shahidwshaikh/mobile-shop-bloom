@@ -74,7 +74,7 @@ export const OrderListItem = ({
                 <User size={14} className="text-gray-500" />
                 <p className="text-sm text-gray-600">{customer}</p>
               </div>
-              {phone && (
+              {phone && phone !== 'No phone provided' && (
                 <div className="flex items-center gap-1 mt-1">
                   <Phone size={14} className="text-gray-500" />
                   <p className="text-xs text-gray-500">{phone}</p>

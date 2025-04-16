@@ -86,6 +86,7 @@ export const useOrdersManagement = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      console.log("Fetching orders...");
       
       // Fetch orders first
       const { data: ordersData, error: ordersError } = await supabase
@@ -109,6 +110,8 @@ export const useOrdersManagement = () => {
         return;
       }
       
+      console.log("Orders fetched:", ordersData.length);
+      
       // Get order items count and customer details for each order
       const ordersWithDetails = await Promise.all(
         ordersData.map(async (order) => {
@@ -124,6 +127,8 @@ export const useOrdersManagement = () => {
             .select('full_name, phone')
             .eq('id', order.user_id)
             .maybeSingle();
+          
+          console.log(`Profile for order ${order.id}:`, profileData);
             
           return {
             id: order.id,

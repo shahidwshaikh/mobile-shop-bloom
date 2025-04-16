@@ -64,12 +64,16 @@ export const OrderDetails = ({ orderId, open, onOpenChange }: OrderDetailsProps)
       
       if (orderError) throw orderError;
       
-      // Fetch customer profile - using maybeSingle instead of single to avoid errors
+      console.log("Order data fetched:", orderData);
+      
+      // Fetch customer profile - using maybeSingle to handle cases where profile might not exist
       const { data: profileData } = await supabase
         .from('profiles')
         .select('full_name, phone')
         .eq('id', orderData.user_id)
         .maybeSingle();
+      
+      console.log("Profile data fetched:", profileData);
       
       // Fetch order items
       const { data: orderItems, error: itemsError } = await supabase
